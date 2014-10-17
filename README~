@@ -1,0 +1,11 @@
+Модифицированы файлы:
+packstack/plugins/cinder_250.py
+packstack/plugins/nova_300.py
+
+Добавлены файлы:
+packstack/puppet/templates/cinder_ceph.pp
+packstack/puppet/templates/nova_compute_ceph.pp
+
+Для работы манифестов нео
+puppet module install puppetlabs-stdlib
+puppet module install puppetlabs/firewall

@@ -1,0 +1,18 @@
+RDO requires EPEL, so enable that.
+
+Also install the RDO release rpm, so that it's present on all hosts,
+not just the host that packstack was initiated on.
+
+diff --git a/packstack/plugins/serverprep_001.py b/packstack/plugins/serverprep_001.py
+index f4018a7..bbf9570 100644
+--- a/packstack/plugins/serverprep_001.py
++++ b/packstack/plugins/serverprep_001.py
+@@ -32,7 +32,7 @@ def initConfig(controller):
+              "PROMPT": "To subscribe each server to EPEL enter \"y\"",
+              "OPTION_LIST": ["y", "n"],
+              "VALIDATORS": [validators.validate_options],
+-             "DEFAULT_VALUE": "n",
++             "DEFAULT_VALUE": "y",
+              "MASK_INPUT": False,
+              "LOOSE_VALIDATION": True,
+              "CONF_NAME": "CONFIG_USE_EPEL",
