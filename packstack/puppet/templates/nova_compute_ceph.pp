@@ -4,67 +4,6 @@ $rdo_node = "${hostname}"
 $current_dir = "/root"
 $basearch = "x86_64"
 
-#echo " --- Checking libvirt"
-/*package { "libvirt":
-    ensure => installed,
-}
-service { "libvirtd":
-    ensure => running,
-    enable => true,
-    path => "/etc/init.d/libvirtd",
-    require => Package["libvirt"],
-}*/
-/*
-yumrepo { "ceph":
-    descr => "Ceph packages for ${basearch}",
-    gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
-    enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/${basearch}",
-    priority => "1",
-    gpgcheck => 1,
-    ensure => present,
-}
-
-yumrepo { "ceph-source":
-    descr => "Ceph source packages",
-    gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
-    enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/SRPMS",
-    priority => 1,
-    gpgcheck => 1,
-    ensure => present,
-}
-
-yumrepo { "ceph-noarch":
-    descr => "Ceph noarch packages",
-    gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
-    enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/noarch",
-    priority => 1,
-    gpgcheck => 1,
-    ensure => present,
-}
-
-yumrepo { "ceph-extras":
-    descr => "Ceph Extras",
-    gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
-    enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/${basearch}",
-    priority => 2,
-    gpgcheck => 1,
-    ensure => present,
-}
-
-yumrepo { "ceph-qemu-source":
-    descr => "Ceph Extras Sources",
-    gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
-    enabled => 1,
-    baseurl => "http://ceph.com/packages/ceph-extras/rpm/centos6/SRPMS",
-    priority => 2,
-    gpgcheck => 1,
-    ensure => present,
-}
-*/
 #echo " --- Time sync'ing"
 package { "ntp":
     ensure => installed,
@@ -89,16 +28,6 @@ package { "openssh-server":
 user { "ceph":
     ensure => present,
 }
-#passwd ceph
-#echo "ceph ALL = (root) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ceph
-#sudo chmod 0440 /etc/sudoers.d/ceph
-#su ceph
-#ssh-keygen
-#ssh-copy-id ceph@194.44.37.125
-
-# ???
-#cinder    ALL=(ALL) NOPASSWD: ALL
-
 
 #echo " --- Installing RDO"
 package { "rdo-release":

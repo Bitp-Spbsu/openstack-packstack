@@ -80,16 +80,6 @@ package { "openssh-server":
 user { "ceph":
     ensure => present,
 }
-#passwd ceph
-#echo "ceph ALL = (root) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ceph
-#sudo chmod 0440 /etc/sudoers.d/ceph
-#su ceph
-#ssh-keygen
-#ssh-copy-id ceph@194.44.37.125
-
-# ???
-#cinder    ALL=(ALL) NOPASSWD: ALL
-
 
 #echo " --- Installing RDO"
 package { "rdo-release":
