@@ -2,7 +2,7 @@ Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/ro
 
 $admin_node = "${hostname}" 
 $nova_node = "%(CONFIG_COMPUTE_HOSTS)s"
-$rdo_node="$(dig +short -x ${nova_node} | rev | cut -c 2- | rev | tr -d \"\n\")"
+$rdo_node_array = split("${nova_node}", ",")
 $current_dir = "/root"
 $basearch = "x86_64"
 
@@ -90,40 +90,49 @@ package { "rdo-release":
 exec { "yum-update":
     command => "yum update -y",
     require => Package["rdo-release"],
-}->
+}
 package { "ceph-libs":
     ensure => absent,
-}->
+    require => Exec["yum-update"],
+}
 package { "ceph-deploy":
     ensure => installed,
+    require => Package["ceph-libs"],
 }
 
 #echo " --- Deploying new node"
-exec { "ceph-deploy-new-node":
-    command => "ceph-deploy new ${rdo_node}",
-    require => Package["ceph-libs"],
+define deploy_nodes() {
+    $rdo_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-deploy-new-node-${title}":
+        command => "ceph-deploy new ${rdo_node}",
+        require => Package["ceph-deploy"],
+        timeout => 1800,
+    }
+}
+deploy_nodes{$rdo_node_array:}
+
+#echo " --- Installing CEPH"
+exec { "ceph-deploy-admin-install":
+    command => "ceph-deploy install ${admin_node}",
+    require => Package["ceph-deploy"],
     timeout => 1800,
 }
 
-#if $rdo_node == $admin_node {
-if $ipaddress == $nova_host {
-    $install_nodes = $admin_node
+define install_rdo_nodes() {
+    $rdo_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-deploy-rdo-install-${title}":
+        command => "ceph-deploy install ${rdo_node}",
+        require => [ Package["ceph-libs"],
+                     Exec["ceph-deploy-new-node-${title}"] ],
+        timeout => 1800,
+    }
 }
-else {
-    $install_nodes = [ "${admin_node}", " ${rdo_node}" ]
-}
-#echo " --- Installing CEPH"
-exec { "ceph-deploy-install":
-    command => "ceph-deploy install ${install_nodes}",
-#    command => "ceph-deploy install ${admin_node}",
-    require => [ Package["ceph-libs"],
-                 Exec["ceph-deploy-new-node"] ],
-    timeout => 1800,
-}->
+
+install_rdo_nodes{$rdo_node_array:}
 #echo " --- Modifying ceph.conf"
 file { "/root/ceph.conf":
     ensure => present,
-    require => Exec["ceph-deploy-install"],
+    require => Exec["ceph-deploy-admin-install"],
 } -> 
 file_line { "Append a line to /root/ceph.conf":
     path => "/root/ceph.conf",  
@@ -141,47 +150,61 @@ cluster network = 10.1.1.0/24",
 }*/
 
 #echo " --- Adding the initial monitor and gathering the keys"
+$monitor_node = $rdo_node_array[0]
 exec { "ceph-deploy-monitor-create":
-    command => "ceph-deploy --overwrite-conf mon create ${rdo_node}",
-    require => Exec["ceph-deploy-install"],
+    command => "ceph-deploy --overwrite-conf mon create ${monitor_node}",
+    require => Exec["ceph-deploy-rdo-install-${monitor_node}"],
 }
 exec { "ceph-deploy-monitor-gatherkeys":
-    command => "ceph-deploy gatherkeys ${rdo_node}",
+    command => "ceph-deploy gatherkeys ${monitor_node}",
     require => Exec["ceph-deploy-monitor-create"],
     creates => [ "${current_dir}/ceph.client.admin.keyring",
                  "${current_dir}/ceph.bootstrap-osd.keyring",
                  "${current_dir}/ceph.bootstrap-mds.keyring" ],
 }
 
+file { "/etc/ceph":
+    ensure => directory,
+}
 #echo " --- Creating OSD"
-exec { "ceph-osd-prepare":
-    command => "ceph-deploy --overwrite-conf osd prepare ${rdo_node}:/var/local/osd0",
-    require => Exec["ceph-deploy-monitor-gatherkeys"],
-}
-exec { "ceph-deploy-osd":
-    command => "ceph-deploy osd activate ${rdo_node}:/var/local/osd0",
-    require => Exec["ceph-osd-prepare"],
-}
+define deploy_osd() {
+    $rdo_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-osd-prepare-${title}":
+        command => "ceph-deploy --overwrite-conf osd prepare ${rdo_node}:/var/local/osd0",
+        require => [ Exec["ceph-deploy-rdo-install-${title}"],
+                     Exec["ceph-deploy-monitor-gatherkeys"],
+                     File["/etc/ceph"] ],
+    }->
+    exec { "ceph-deploy-osd-${title}":
+        command => "ceph-deploy osd activate ${rdo_node}:/var/local/osd0",
+        require => Exec["ceph-osd-prepare-${title}"],
+    }->
 
-#echo " --- Copying the configuration file and admin key"
-exec { "ceph-deploy-admin":
-    command => "ceph-deploy --overwrite-conf admin ${admin_node} ${rdo_node}",
-    require => [ Exec["ceph-deploy-monitor-gatherkeys"],
-                 Exec["ceph-deploy-osd"] ],
-}->
+    #echo " --- Copying the configuration file and admin key"
+    exec { "ceph-deploy-admin-${title}":
+        command => "ceph-deploy --overwrite-conf admin ${admin_node} ${rdo_node}",
+        require => [ Exec["ceph-deploy-monitor-gatherkeys"],
+                     Exec["ceph-deploy-osd-${title}"] ],
+    }
+}
+deploy_osd{$rdo_node_array:}->
 file { "/etc/ceph/ceph.client.admin.keyring":
     mode => "+r",    
 }
 
-#echo " --- Adding a Metadata Server"
-exec {'ceph-deploy-mds':
-    command => "ceph-deploy --overwrite-conf mds create ${rdo_node}",
-    require => Exec["ceph-deploy-monitor-gatherkeys"],
+define deploy_mds(){
+    #echo " --- Adding a Metadata Server"
+    $rdo_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-deploy-mds-${title}":
+        command => "ceph-deploy --overwrite-conf mds create ${rdo_node}",
+        require => [ Exec["ceph-deploy-monitor-gatherkeys"],
+                     Exec["ceph-deploy-new-node-${title}"] ],
+    }
 }
-
+deploy_mds{$rdo_node_array:}->
 file_line { "Append2 a line to /root/ceph.conf":
-    path => "/root/ceph.conf",  
-    line => 
+    path => "/root/ceph.conf",
+    line =>
 "[client.images]
 keyring = /etc/ceph/ceph.client.images.keyring
 
@@ -190,12 +213,18 @@ keyring = /etc/ceph/ceph.client.volumes.keyring
 
 [client.backups]
 keyring = /etc/ceph/ceph.client.backups.keyring",
-    require => [ File["/root/ceph.conf"],
-                 Exec["ceph-deploy-osd"] ],
-}->
-exec { "ceph-config-push":
-    command => "ceph-deploy --overwrite-conf config push ${rdo_node}",
+    require => File["/root/ceph.conf"],
 }
+
+define config_push() {
+    $rdo_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-config-push-${title}":
+        command => "ceph-deploy --overwrite-conf config push ${rdo_node}",
+        require => File_line["Append2 a line to /root/ceph.conf"],
+    }
+}
+config_push{$rdo_node_array:}
+
 
 #echo " --- Solving ceilometer-api dateutil issue"
 package { "python-dateutil":
