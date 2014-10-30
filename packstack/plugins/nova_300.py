@@ -428,6 +428,13 @@ def create_api_manifest(config, messages):
             "'%s'" % config['CONFIG_NEUTRON_METADATA_PW']
     manifestfile = "%s_api_nova.pp" % config['CONFIG_CONTROLLER_HOST']
     manifestdata = getManifestTemplate("nova_api.pp")
+    config['FIREWALL_SERVICE_NAME'] = "nova api"
+    config['FIREWALL_PORTS'] = "['8773', '8774', '8775']"
+    config['FIREWALL_CHAIN'] = "INPUT"
+    config['FIREWALL_PROTOCOL'] = 'tcp'
+    config['FIREWALL_ALLOWED'] = "'ALL'"
+    config['FIREWALL_SERVICE_ID'] = "nova_api"
+    manifestdata += getManifestTemplate("firewall.pp")
     appendManifestFile(manifestfile, manifestdata, 'novaapi')
 
 
@@ -512,10 +519,6 @@ def create_compute_manifest(config, messages):
                 config['CONFIG_CINDER_INSTALL'] == 'y' and
                 config['CONFIG_CINDER_BACKEND'] == 'nfs'):
             manifestdata += getManifestTemplate("nova_nfs.pp")
-        if (config['CONFIG_VMWARE_BACKEND'] != 'y' and
-                config['CONFIG_CINDER_INSTALL'] == 'y' and
-                config['CONFIG_CINDER_BACKEND'] == 'ceph'):
-            manifestdata += getManifestTemplate("nova_compute_ceph.pp")
         manifestfile = "%s_nova.pp" % host
 
         nova_config_options = NovaConfig()
@@ -626,7 +629,7 @@ def create_common_manifest(config, messages):
                 perms = "nova"
             else:
                 perms = "nova:%(CONFIG_NOVA_DB_PW)s"
-            sqlconn = "mysql://%s@%%(CONFIG_MYSQL_HOST)s/nova" % perms
+            sqlconn = "mysql://%s@%%(CONFIG_MARIADB_HOST)s/nova" % perms
             config['CONFIG_NOVA_SQL_CONN'] = sqlconn % config
 
             # for nova-network in multihost mode each compute host is metadata

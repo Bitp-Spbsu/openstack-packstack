@@ -2,7 +2,7 @@
 VERSION = ['2014', '1', '1']
 FINAL=False
 RELEASE="Icehouse"
-SNAPTAG=1238
+SNAPTAG=1258
 
 def release_string():
     return RELEASE

@@ -7,9 +7,11 @@ class packstack::neutron::bridge {
         ensure => present,
         mode => 0700,
         content => template('packstack/openstack-neutron.modules.erb'),
-    }
-
-    file_line { '/etc/sysctl.conf bridge-nf-call-ip6tables':
+    } -> exec { 'load-bridge':
+        path => ['/sbin', '/usr/sbin'],
+        command => 'modprobe -b bridge',
+        logoutput => 'on_failure'
+    } -> file_line { '/etc/sysctl.conf bridge-nf-call-ip6tables':
         path  => '/etc/sysctl.conf',
         line  => 'net.bridge.bridge-nf-call-ip6tables=1',
         match => 'net.bridge.bridge-nf-call-ip6tables\s*=',

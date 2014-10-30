@@ -1,0 +1,3 @@
+
+class { 'remote::db':
+}

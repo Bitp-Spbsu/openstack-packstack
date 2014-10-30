@@ -80,13 +80,19 @@ def initSequences(controller):
 #-------------------------- step functions --------------------------
 
 def create_keystone_manifest(config, messages):
+    if config['CONFIG_UNSUPPORTED'] != 'y':
+        config['CONFIG_STORAGE_HOST'] = config['CONFIG_CONTROLLER_HOST']
+
     manifestfile = "%s_keystone.pp" % config['CONFIG_CONTROLLER_HOST']
     manifestdata = getManifestTemplate("keystone_glance.pp")
     appendManifestFile(manifestfile, manifestdata)
 
 
 def create_manifest(config, messages):
-    manifestfile = "%s_glance.pp" % config['CONFIG_CONTROLLER_HOST']
+    if config['CONFIG_UNSUPPORTED'] != 'y':
+        config['CONFIG_STORAGE_HOST'] = config['CONFIG_CONTROLLER_HOST']
+
+    manifestfile = "%s_glance.pp" % config['CONFIG_STORAGE_HOST']
     manifestdata = getManifestTemplate("glance.pp")
     if config['CONFIG_CEILOMETER_INSTALL'] == 'y':
         mq_template = get_mq(config, "glance_ceilometer")
@@ -96,14 +102,8 @@ def create_manifest(config, messages):
     config['FIREWALL_PORTS'] = "'9292'"
     config['FIREWALL_CHAIN'] = "INPUT"
     config['FIREWALL_PROTOCOL'] = 'tcp'
-    if config['CONFIG_NOVA_INSTALL'] == 'y':
-        for host in split_hosts(config['CONFIG_COMPUTE_HOSTS']):
-            config['FIREWALL_ALLOWED'] = "'%s'" % host
-            config['FIREWALL_SERVICE_ID'] = "glance_%s" % host
-            manifestdata += getManifestTemplate("firewall.pp")
-    else:
-        config['FIREWALL_ALLOWED'] = "'ALL'"
-        config['FIREWALL_SERVICE_ID'] = "glance_ALL"
-        manifestdata += getManifestTemplate("firewall.pp")
+    config['FIREWALL_ALLOWED'] = "'ALL'"
+    config['FIREWALL_SERVICE_ID'] = "glance_API"
+    manifestdata += getManifestTemplate("firewall.pp")
 
     appendManifestFile(manifestfile, manifestdata)

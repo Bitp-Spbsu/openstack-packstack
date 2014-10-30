@@ -52,7 +52,7 @@ def initConfig(controller):
                    "setup"),
          "PROMPT": "Enter the Swift Storage devices e.g. /path/to/dev",
          "OPTION_LIST": [],
-         "VALIDATORS": [],
+         "VALIDATORS": [validate_storage],
          "DEFAULT_VALUE": '',
          "MASK_INPUT": False,
          "LOOSE_VALIDATION": True,
@@ -161,6 +161,15 @@ def initSequences(controller):
 
 
 #------------------------- helper functions -------------------------
+
+def validate_storage(param, options=None):
+    if not param:
+        return
+    if not param.startswith('/'):
+        raise ParamValidationError(
+            'Storage value has to be in format "/path/to/device".'
+        )
+
 
 def validate_storage_size(param, options=None):
     match = re.match(r'\d+G|\d+M|\d+K', param, re.IGNORECASE)
@@ -276,6 +285,13 @@ def create_builder_manifest(config, messages):
 def create_proxy_manifest(config, messages):
     manifestfile = "%s_swift.pp" % config['CONFIG_CONTROLLER_HOST']
     manifestdata = getManifestTemplate("swift_proxy.pp")
+    config['FIREWALL_SERVICE_NAME'] = "swift proxy"
+    config['FIREWALL_PORTS'] = "'8080'"
+    config['FIREWALL_CHAIN'] = "INPUT"
+    config['FIREWALL_PROTOCOL'] = 'tcp'
+    config['FIREWALL_ALLOWED'] = "'ALL'"
+    config['FIREWALL_SERVICE_ID'] = "swift_proxy"
+    manifestdata += getManifestTemplate("firewall.pp")
     appendManifestFile(manifestfile, manifestdata)
 
 

@@ -75,7 +75,8 @@ def initConfig(controller):
              "CONDITION": False},
 
             {"CMD_OPTION": "os-neutron-l2-plugin",
-             "USAGE": "The name of the L2 plugin to be used with Neutron",
+             "USAGE": "The name of the L2 plugin to be used with Neutron. "
+                      "(eg. linuxbridge, openvswitch, ml2)",
              "PROMPT": ("Enter the name of the L2 plugin to be used "
                         "with Neutron"),
              "OPTION_LIST": ["linuxbridge", "openvswitch", "ml2"],
@@ -760,16 +761,15 @@ def create_manifests(config, messages):
             # XXX I am not completely sure about this, but it seems necessary:
             manifest_data += getManifestTemplate(plugin_manifest)
 
-            # Firewall Rules
-            for f_host in q_hosts:
-                config['FIREWALL_SERVICE_NAME'] = "neutron server"
-                config['FIREWALL_PORTS'] = "'9696'"
-                config['FIREWALL_CHAIN'] = "INPUT"
-                config['FIREWALL_PROTOCOL'] = 'tcp'
-                config['FIREWALL_ALLOWED'] = "'%s'" % f_host
-                config['FIREWALL_SERVICE_ID'] = ("neutron_server_%s_%s"
-                                                 % (host, f_host))
-                manifest_data += getManifestTemplate("firewall.pp")
+            #Firewall
+            config['FIREWALL_SERVICE_NAME'] = "neutron server"
+            config['FIREWALL_PORTS'] = "'9696'"
+            config['FIREWALL_CHAIN'] = "INPUT"
+            config['FIREWALL_PROTOCOL'] = 'tcp'
+            config['FIREWALL_ALLOWED'] = "'ALL'"
+            config['FIREWALL_SERVICE_ID'] = ("neutron_server_%s"
+                                                 % (host))
+            manifest_data += getManifestTemplate("firewall.pp")
 
             appendManifestFile(manifest_file, manifest_data, 'neutron')
 
@@ -939,10 +939,10 @@ def create_l2_agent_manifests(config, messages):
                     config[bridge_key], config[iface_key] = if_map.split(':')
                     manifestdata = getManifestTemplate("neutron_ovs_port.pp")
                     appendManifestFile(manifestfile, manifestdata + "\n")
-        # Additional configurations required for compute hosts
-        if host in compute_hosts:
-            manifestdata = getManifestTemplate('neutron_bridge_module.pp')
-            appendManifestFile(manifestfile, manifestdata + '\n')
+        # Additional configurations required for compute hosts and
+        # network hosts.
+        manifestdata = getManifestTemplate('neutron_bridge_module.pp')
+        appendManifestFile(manifestfile, manifestdata + '\n')
 
 
 def create_metadata_manifests(config, messages):
@@ -986,7 +986,7 @@ def check_nm_status(config, messages):
 
         server.clear()
 
-    if len(hosts_with_nm) > 1:
+    if hosts_with_nm:
         hosts_list = ', '.join("%s" % x for x in hosts_with_nm)
         msg = output_messages.WARN_NM_ENABLED
         messages.append(utils.color_text(msg % hosts_list, 'yellow'))

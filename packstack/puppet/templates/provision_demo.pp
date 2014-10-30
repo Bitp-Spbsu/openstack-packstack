@@ -11,11 +11,6 @@
   # Heat Using Trusts
   $heat_using_trusts         = '%(CONFIG_HEAT_USING_TRUSTS)s'
 
-  ## Glance
-  $image_name                = 'cirros'
-  $image_source              = 'http://download.cirros-cloud.net/0.3.1/cirros-0.3.1-x86_64-disk.img'
-  $image_ssh_user            = 'cirros'
-
   ## Neutron
   $public_network_name       = 'public'
   $public_subnet_name        = 'public_subnet'
@@ -25,7 +20,7 @@
   $fixed_range               = '10.0.0.0/24'
   $router_name               = 'router1'
   $setup_ovs_bridge          = %(CONFIG_PROVISION_ALL_IN_ONE_OVS_BRIDGE)s
-  $public_bridge_name        = '%(CONFIG_PROVISION_DEMO_FLOATRANGE)s'
+  $public_bridge_name        = '%(CONFIG_NEUTRON_L3_EXT_BRIDGE)s'
 
   ## Users
 
@@ -48,16 +43,7 @@
     }
   }
 
-  ## Images
-
-  glance_image { $image_name:
-    ensure           => present,
-    is_public        => 'yes',
-    container_format => 'bare',
-    disk_format      => 'qcow2',
-    source           => $image_source,
-  }
-
+  
   ## Neutron
 
   if %(PROVISION_NEUTRON_AVAILABLE)s {
