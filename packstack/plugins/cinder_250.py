@@ -63,9 +63,9 @@ def initConfig(controller):
 
         {"CMD_OPTION": "cinder-backend",
          "USAGE": ("The Cinder backend to use, valid options are: lvm, "
-                   "gluster, nfs"),
+                   "gluster, nfs", "ceph"),
          "PROMPT": "Enter the Cinder backend to be configured",
-         "OPTION_LIST": ["lvm", "gluster", "nfs", "vmdk"],
+         "OPTION_LIST": ["lvm", "gluster", "nfs", "vmdk", "ceph"],
          "VALIDATORS": [validators.validate_options],
          "DEFAULT_VALUE": "lvm",
          "MASK_INPUT": False,
@@ -208,6 +208,8 @@ def initSequences(controller):
     cinder_steps = [
         {'title': 'Adding Cinder Keystone manifest entries',
          'functions': [create_keystone_manifest]},
+        {'title': 'Adding Cinder Ceph preflight entries',
+         'functions': [create_ceph_preflight_manifest]},
         {'title': 'Adding Cinder manifest entries',
          'functions': [create_manifest]}
     ]
@@ -354,6 +356,8 @@ def create_manifest(config, messages):
         manifestdata += getManifestTemplate("cinder_nfs.pp")
     elif config['CONFIG_CINDER_BACKEND'] == "vmdk":
         manifestdata += getManifestTemplate("cinder_vmdk.pp")
+    elif config['CONFIG_CINDER_BACKEND'] == "ceph":
+        manifestdata += getManifestTemplate("cinder_ceph.pp")
     if config['CONFIG_CEILOMETER_INSTALL'] == 'y':
         manifestdata += getManifestTemplate('cinder_ceilometer.pp')
     if config['CONFIG_SWIFT_INSTALL'] == 'y':
@@ -380,3 +384,24 @@ def create_manifest(config, messages):
     config['FIREWALL_PORTS'] = "['8776']"
     manifestdata += getManifestTemplate("firewall.pp")
     appendManifestFile(manifestfile, manifestdata)
+
+def create_ceph_preflight_manifest(config, messages):
+    for host in split_hosts(config['CONFIG_COMPUTE_HOSTS']):
+        manifest_file = "%s_ceph_firewall.pp" % host
+        # Firewall Rules for dhcp in
+        config['FIREWALL_PROTOCOL'] = 'tcp'
+        config['FIREWALL_ALLOWED'] = "'ALL'"
+        config['FIREWALL_SERVICE_NAME'] = "Ceph monitor: "
+        config['FIREWALL_SERVICE_ID'] = "ceph_monitor_%s" % host
+        config['FIREWALL_PORTS'] = "'6789'"
+        config['FIREWALL_CHAIN'] = "INPUT"
+        manifest_data = getManifestTemplate("firewall.pp")
+        # Firewall Rules for dhcp out
+        config['FIREWALL_PROTOCOL'] = 'tcp'
+        config['FIREWALL_ALLOWED'] = "'ALL'"
+        config['FIREWALL_SERVICE_NAME'] = "Ceph OSDs"
+        config['FIREWALL_SERVICE_ID'] = "ceph_osds_%s" % host
+        config['FIREWALL_PORTS'] = "'6800-7100'"
+        config['FIREWALL_CHAIN'] = "INPUT"
+        manifest_data += getManifestTemplate("firewall.pp")
+        appendManifestFile(manifest_file, manifest_data)
