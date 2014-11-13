@@ -328,50 +328,6 @@ exec { "virsh2":
     require => Exec ["virsh"],
 }
 ->
-file { ["/root/client.volumes.key",
-        "/root/virsh.result" ]:
-    ensure => absent,
-}
-
-exec { "ceph-osd-libvirt-pool":
-    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
-    require =>  Package["ceph"],
-                 #Service["libvirt"] ],
-}
-
-#echo " --- Solving ceilometer-api dateutil issue"
-/*package { "python-dateutil":
-    ensure => latest,
-    provider => "pip",
-}*/
-
-firewall { "00000 Ceph monitor on port 6789":
-  chain    => "INPUT",
-#  iniface  => "eth1",
-  proto => "tcp",
-#  source   => "10.1.1.0/24",
-  dport => "6789",
-  action => "accept",
-  notify => Exec["iptables-save"]
-}
-
-firewall { "00001 Ceph OSDs on port 6800:7100":
-  chain    => "INPUT",
-#  iniface  => "eth1",
-  proto => "tcp",
-#  source   => "10.1.1.0/24",
-  dport => "6800-7100",
-  action => "accept",
-  notify => Exec["iptables-save"]
-}
-
-exec { "iptables-save":
-  command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
-  refreshonly => true,
-}
-
-
-
 cinder_config {
   "DEFAULT/rbd_user":                           value => "volumes";
   "DEFAULT/volume_driver":                      value => "cinder.volume.drivers.rbd.RBDDriver";
@@ -410,7 +366,46 @@ glance_api_config {
   "DEFAULT/rbd_store_ceph_conf": value => "/etc/ceph/ceph.conf";
   "DEFAULT/rbd_store_chunk_size": value => "8";
 }->
-file { "/root/rbd.secret.uuid":
+file { ["/root/client.volumes.key",
+        "/root/virsh.result",
+        "/root/rbd.secret.uuid"]:
     ensure => absent,
+}
+
+exec { "ceph-osd-libvirt-pool":
+    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
+    require =>  Package["ceph"],
+                 #Service["libvirt"] ],
+}
+
+#echo " --- Solving ceilometer-api dateutil issue"
+/*package { "python-dateutil":
+    ensure => latest,
+    provider => "pip",
+}*/
+
+firewall { "00000 Ceph monitor on port 6789":
+  chain    => "INPUT",
+#  iniface  => "eth1",
+  proto => "tcp",
+#  source   => "10.1.1.0/24",
+  dport => "6789",
+  action => "accept",
+  notify => Exec["iptables-save"]
+}
+
+firewall { "00001 Ceph OSDs on port 6800:7100":
+  chain    => "INPUT",
+#  iniface  => "eth1",
+  proto => "tcp",
+#  source   => "10.1.1.0/24",
+  dport => "6800-7100",
+  action => "accept",
+  notify => Exec["iptables-save"]
+}
+
+exec { "iptables-save":
+  command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
+  refreshonly => true,
 }
 
