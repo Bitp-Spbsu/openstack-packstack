@@ -393,7 +393,7 @@ def create_ceph_preflight_manifest(config, messages):
         config['FIREWALL_ALLOWED'] = "'ALL'"
         config['FIREWALL_SERVICE_NAME'] = "Ceph monitor: "
         config['FIREWALL_SERVICE_ID'] = "ceph_monitor_%s" % host
-        config['FIREWALL_PORTS'] = "'6789'"
+        config['FIREWALL_PORTS'] = "['6789']"
         config['FIREWALL_CHAIN'] = "INPUT"
         manifest_data = getManifestTemplate("firewall.pp")
         # Firewall Rules for dhcp out
@@ -401,7 +401,7 @@ def create_ceph_preflight_manifest(config, messages):
         config['FIREWALL_ALLOWED'] = "'ALL'"
         config['FIREWALL_SERVICE_NAME'] = "Ceph OSDs"
         config['FIREWALL_SERVICE_ID'] = "ceph_osds_%s" % host
-        config['FIREWALL_PORTS'] = "'6800-7100'"
+        config['FIREWALL_PORTS'] = "['6800-7100']"
         config['FIREWALL_CHAIN'] = "INPUT"
         manifest_data += getManifestTemplate("firewall.pp")
         appendManifestFile(manifest_file, manifest_data)
