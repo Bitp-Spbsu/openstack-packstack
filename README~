@@ -1,6 +1,6 @@
 New in answer file:
 CONFIG_CINDER_BACKEND=ceph
-CONFIG_STORAGE_HOST=<IP_of_ceph_storage_node(s)>
+CONFIG_STORAGE_HOST=<IP(s)_of_ceph_storage_node>
 
 
 Modified scripts:
