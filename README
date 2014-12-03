@@ -1,4 +1,4 @@
-New in answer file:
+New options in answer file:
 CONFIG_CINDER_BACKEND=ceph
 CONFIG_STORAGE_HOST=<IP_of_ceph_storage_node(s)>
 
@@ -8,3 +8,15 @@ Modified scripts:
 /packstack/plugins/nova_300.py
 /packstack/puppet/templates/cinder_ceph.pp
 /packstack/puppet/templates/nova_ceph.pp
+
+! ATTENTION !
+Check network and osd settings in cinder_ceph.pp:141
+
+file_line { "Append a line to /root/ceph.conf":
+    path => "/root/ceph.conf",
+    line =>
+"osd pool default size = 1
+public network = 194.44.37.0/24
+cluster network = 10.1.1.0/24",
+}
+
