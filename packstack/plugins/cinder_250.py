@@ -386,7 +386,7 @@ def create_manifest(config, messages):
     appendManifestFile(manifestfile, manifestdata)
 
 def create_ceph_preflight_manifest(config, messages):
-    for host in split_hosts(config['CONFIG_COMPUTE_HOSTS']):
+    for host in split_hosts(config['CONFIG_STORAGE_HOST']):
         manifest_file = "%s_ceph_firewall.pp" % host
         # Firewall Rules for dhcp in
         config['FIREWALL_PROTOCOL'] = 'tcp'
@@ -405,3 +405,5 @@ def create_ceph_preflight_manifest(config, messages):
         config['FIREWALL_CHAIN'] = "INPUT"
         manifest_data += getManifestTemplate("firewall.pp")
         appendManifestFile(manifest_file, manifest_data)
+
+

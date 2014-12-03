@@ -1,7 +1,7 @@
 Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin" }
 
 $admin_node = "${hostname}"
-$storage_node = "%(CONFIG_CEPH_STORAGE_HOSTS)s"
+$storage_node = "%(CONFIG_STORAGE_HOST)s"
 $storage_node_array = split("${storage_node}", ",")
 $current_dir = "/root"
 $basearch = "x86_64"
@@ -80,16 +80,6 @@ package { "openssh-server":
 user { "ceph":
     ensure => present,
 }
-#passwd ceph
-#echo "ceph ALL = (root) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ceph
-#sudo chmod 0440 /etc/sudoers.d/ceph
-#su ceph
-#ssh-keygen
-#ssh-copy-id ceph@194.44.37.125
-
-# ???
-#cinder    ALL=(ALL) NOPASSWD: ALL
-
 
 #echo " --- Installing RDO"
 package { "rdo-release":
@@ -108,6 +98,10 @@ package { "ceph-libs":
 package { "ceph-deploy":
     ensure => installed,
     require => Package["ceph-libs"],
+}
+package { "ceph":
+    ensure => installed,
+    require => Package["ceph-deploy"],
 }
 
 #echo " --- Deploying new node"
@@ -153,14 +147,19 @@ cluster network = 10.1.1.0/24",
 }
 
 #echo " --- Adding the initial monitor and gathering the keys"
-$monitor_node = $storage_node_array[0]
-exec { "ceph-deploy-monitor-create":
-    command => "ceph-deploy --overwrite-conf mon create ${monitor_node}",
-    require => Exec["ceph-deploy-storage-install-${monitor_node}"],
+define deploy_monitor() {
+    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-deploy-monitor-create-${title}":
+        command => "ceph-deploy --overwrite-conf mon create ${storage_node}",
+        require => Exec["ceph-deploy-storage-install-${title}"],
+    }
 }
-exec { "ceph-deploy-monitor-gatherkeys":
-    command => "ceph-deploy gatherkeys ${monitor_node}",
-    require => Exec["ceph-deploy-monitor-create"],
+$first_node = $storage_node_array[0]
+$gather_node = "$(grep -r ${first_node} /etc/hosts | awk '{print \$2}')"
+deploy_monitor{$storage_node_array:}
+exec { "ceph-deploy-monitor-gatherkeys-${first_node}":
+    command => "ceph-deploy gatherkeys ${gather_node}",
+    require => Exec["ceph-deploy-monitor-create-${first_node}"],
     creates => [ "${current_dir}/ceph.client.admin.keyring",
                  "${current_dir}/ceph.bootstrap-osd.keyring",
                  "${current_dir}/ceph.bootstrap-mds.keyring" ],
@@ -175,7 +174,7 @@ define deploy_osd() {
     exec { "ceph-osd-prepare-${title}":
         command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:/var/local/osd0",
         require => [ Exec["ceph-deploy-storage-install-${title}"],
-                     Exec["ceph-deploy-monitor-gatherkeys"],
+                     Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
                      File["/etc/ceph"] ],
     }->
     exec { "ceph-deploy-osd-${title}":
@@ -186,7 +185,7 @@ define deploy_osd() {
     #echo " --- Copying the configuration file and admin key"
     exec { "ceph-deploy-admin-${title}":
         command => "ceph-deploy --overwrite-conf admin ${admin_node} ${storage_node}",
-        require => [ Exec["ceph-deploy-monitor-gatherkeys"],
+        require => [ Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
                      Exec["ceph-deploy-osd-${title}"] ],
     }
 }
@@ -200,7 +199,7 @@ define deploy_mds(){
     $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-deploy-mds-${title}":
         command => "ceph-deploy --overwrite-conf mds create ${storage_node}",
-        require => [ Exec["ceph-deploy-monitor-gatherkeys"],
+        require => [ Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
                      Exec["ceph-deploy-storage-install-${title}"] ],
     }
 }
@@ -236,7 +235,8 @@ $poolname3 = "backups"
 
 exec { "ceph-create-osd-pool":
     command => "ceph osd pool create ${poolname1} 128 ; ceph osd pool create ${poolname2} 128 ; ceph osd pool create ${poolname3} 128",
-    require => Package["ceph"],
+    require => [ Package["ceph"],
+                 File_line ["Append keyring info to /root/ceph.conf"] ],
 }
 
 #echo " --- Create a keyring and user for images, volumes and backups"
@@ -290,7 +290,8 @@ augeas { "sudo/requiretty":
 }
 exec { "client-volumes-key":
     command => "ceph auth get-key client.volumes | tee client.volumes.key",
-    require => [ Exec["ceph-authtool-volumes"],
+    require => [ #Exec["ceph-authtool-volumes"],
+                 Package["ceph"],
                  ],
 #    before => Exec["virsh"],
     creates => "/root/client.volumes.key",
@@ -306,67 +307,31 @@ file { "/root/secret.xml":
 </secret>",
 }
 
+package { "libvirt":
+    ensure => installed,
+}
+service { "libvirtd":
+    ensure => running,
+    provider => "init",
+    require => Package["libvirt"],
+}
 exec { "virsh":
     command => "virsh secret-define --file secret.xml &> virsh.result; cat virsh.result | egrep -o '[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}' > rbd.secret.uuid",
     returns => [ "0", "1", ],
-    require => [ Package["libvirt"],
+    require => [ Service["libvirtd"],
                  File["/root/secret.xml"],
                  Exec["client-volumes-key"] ],
 }
 
-$rbd_secret_uuid=`/bin/cat rbd.secret.uuid`
-
 exec { "virsh2":
     command => "virsh secret-set-value --secret ${rbd_secret_uuid} --base64 `/bin/cat client.volumes.key`",
+    returns => [ "0", "1", ],
     require => Exec ["virsh"],
-}
-->
-cinder_config {
-  "DEFAULT/rbd_user":                           value => "volumes";
-  "DEFAULT/volume_driver":                      value => "cinder.volume.drivers.rbd.RBDDriver";
-  "DEFAULT/rbd_user":                           value => "volumes";
-  "DEFAULT/rbd_secret_uuid":                    value => "${rbd_secret_uuid}"; # !!!
-  "DEFAULT/rbd_pool":                           value => "volumes";
-  "DEFAULT/rbd_ceph_conf":                      value => "/etc/ceph/ceph.conf";
-  "DEFAULT/rbd_flatten_volume_from_snapshot":   value => "false";
-  "DEFAULT/rbd_max_clone_depth":                value => "5";
-  
-  "DEFAULT/backup_driver":                      value => "cinder.backup.drivers.ceph";
-  "DEFAULT/backup_ceph_conf":                   value => "/etc/ceph/ceph.conf";
-  "DEFAULT/backup_ceph_user":                   value => "cinder-backup";
-  "DEFAULT/backup_ceph_pool":                   value => "backups";
-  "DEFAULT/backup_ceph_chunk_size":             value => "134217728";
-  "DEFAULT/backup_ceph_stripe_unit":            value => "0";
-  "DEFAULT/backup_ceph_stripe_count":           value => "0";
-  "DEFAULT/restore_discard_excess_bytes":       value => "true";
-}->
-nova_config {
-  "DEFAULT/rbd_user":                           value => "volumes";
-  "DEFAULT/rbd_secret_uuid":                    value => "${rbd_secret_uuid}"; # !!!
-  
-  "libvirt/libvirt_images_type":                value => "rbd";
-  "libvirt/libvirt_images_rbd_pool":            value => "volumes";
-  "libvirt/libvirt_images_rbd_ceph_conf":       value => "/etc/ceph/ceph.conf";
-  "libvirt/libvirt_inject_password":            value => "false";
-  "libvirt/libvirt_inject_key":                 value => "false";
-  "libvirt/libvirt_inject_partition":           value => "-2";
-}->
-glance_api_config {
-  "DEFAULT/default_store": value => "rbd";
-  "DEFAULT/rbd_store_user": value => "images";
-  "DEFAULT/rbd_store_pool": value => "images";
-  "DEFAULT/show_image_direct_url": value => "True";
-  "DEFAULT/rbd_store_ceph_conf": value => "/etc/ceph/ceph.conf";
-  "DEFAULT/rbd_store_chunk_size": value => "8";
-}->
-file { ["/root/client.volumes.key",
-        "/root/virsh.result",
-        "/root/rbd.secret.uuid"]:
-    ensure => absent,
 }
 
 exec { "ceph-osd-libvirt-pool":
     command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
+    returns => [ "0", "1", ],
     require =>  Package["ceph"],
                  #Service["libvirt"] ],
 }
@@ -401,4 +366,6 @@ exec { "iptables-save":
   command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
   refreshonly => true,
 }
+
+
 

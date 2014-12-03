@@ -338,6 +338,8 @@ def initSequences(controller):
          'functions': [network_function]},
         {'title': 'Adding Nova Common manifest entries',
          'functions': [create_common_manifest]},
+        {'title': 'Adding Ceph manifest entries',
+         'functions': [create_ceph_manifest]},
     ]
 
     controller.addSequence("Installing OpenStack Nova API", [], [],
@@ -657,3 +659,13 @@ def create_neutron_manifest(config, messages):
         if manifestfile.endswith("_nova.pp"):
             data = getManifestTemplate("nova_neutron.pp")
             appendManifestFile(os.path.split(manifestfile)[1], data)
+
+def create_ceph_manifest(config, messages):
+    if (config['CONFIG_VMWARE_BACKEND'] != 'y' and
+            config['CONFIG_CINDER_INSTALL'] == 'y' and
+            config['CONFIG_CINDER_BACKEND'] == 'ceph'):
+        manifestdata = getManifestTemplate("nova_ceph.pp")
+    
+    manifestfile = "%s_nova.pp" % config['CONFIG_CONTROLLER_HOST']
+    appendManifestFile(manifestfile, manifestdata)
+
