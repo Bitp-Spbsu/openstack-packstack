@@ -46,7 +46,6 @@ file { ["/root/client.volumes.key",
 service { "openstack-service":
     restart => "/usr/bin/openstack-service restart",
     ensure => "running",
-    enable => "true",
     start => "/usr/bin/openstack-service start",
 }
 
