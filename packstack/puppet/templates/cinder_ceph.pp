@@ -6,6 +6,10 @@ $storage_node_array = split("${storage_node}", ",")
 $current_dir = "/root"
 $basearch = "x86_64"
 
+file { "/etc/yum.repos.d/ceph.repo":
+    ensure => absent,
+}
+
 yumrepo { "ceph":
     descr => "Ceph packages for ${basearch}",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
@@ -14,6 +18,7 @@ yumrepo { "ceph":
     priority => "1",
     gpgcheck => 1,
     ensure => present,
+    require => File["/etc/yum.repos.d/ceph.repo"],
 }
 
 yumrepo { "ceph-source":
@@ -24,6 +29,7 @@ yumrepo { "ceph-source":
     priority => 1,
     gpgcheck => 1,
     ensure => present,
+    require => Yumrepo["ceph"],
 }
 
 yumrepo { "ceph-noarch":
@@ -34,7 +40,9 @@ yumrepo { "ceph-noarch":
     priority => 1,
     gpgcheck => 1,
     ensure => present,
+    require => Yumrepo["ceph"],
 }
+
 
 yumrepo { "ceph-extras":
     descr => "Ceph Extras",
@@ -44,6 +52,7 @@ yumrepo { "ceph-extras":
     priority => 2,
     gpgcheck => 1,
     ensure => present,
+    require => Yumrepo["ceph"],
 }
 
 yumrepo { "ceph-qemu-source":
@@ -54,6 +63,7 @@ yumrepo { "ceph-qemu-source":
     priority => 2,
     gpgcheck => 1,
     ensure => present,
+    require => Yumrepo["ceph"],
 }
 
 #echo " --- Time sync'ing"
@@ -242,7 +252,7 @@ exec { "ceph-create-osd-pool":
 #echo " --- Create a keyring and user for images, volumes and backups"
 $keyring_path = "/etc/ceph"
 
-exec { "ceph-key-${poolname1}":
+exec { "ceph-create-key-${poolname1}":
     command => "ceph-authtool --create-keyring ${keyring_path}/ceph.client.${poolname1}.keyring",
     require => Exec["ceph-create-osd-pool"],
 }->
@@ -250,10 +260,10 @@ file { "/etc/ceph/ceph.client.${poolname1}.keyring":
     mode => "+r",
 }->
 exec { "ceph-authtool-${poolname1}":
-    command => "ceph-authtool ${keyring_path}/ceph.client.${poolname1}.keyring -n client.${poolname1} --gen-key ; ceph-authtool -n client.${poolname1} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname1}' ${keyring_path}/ceph.client.${poolname1}.keyring ; ceph auth add client.${poolname1} -i ${keyring_path}/ceph.client.${poolname1}.keyring",
+    command => "ceph-authtool ${keyring_path}/ceph.client.${poolname1}.keyring -n client.${poolname1} --gen-key ; ceph-authtool -n client.${poolname1} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname1}' ${keyring_path}/ceph.client.${poolname1}.keyring ; ceph auth import -i ${keyring_path}/ceph.client.${poolname1}.keyring",
 }
 
-exec { "ceph-key-${poolname2}":
+exec { "ceph-create-key-${poolname2}":
     command => "ceph-authtool --create-keyring ${keyring_path}/ceph.client.${poolname2}.keyring",
     require => Exec["ceph-create-osd-pool"],
 }->
@@ -261,10 +271,10 @@ file { "/etc/ceph/ceph.client.${poolname2}.keyring":
     mode => "+r",
 }->
 exec { "ceph-authtool-${poolname2}":
-    command => "ceph-authtool ${keyring_path}/ceph.client.${poolname2}.keyring -n client.${poolname2} --gen-key ; ceph-authtool -n client.${poolname2} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname2}' ${keyring_path}/ceph.client.${poolname2}.keyring ; ceph auth add client.${poolname2} -i ${keyring_path}/ceph.client.${poolname2}.keyring",
+    command => "ceph-authtool ${keyring_path}/ceph.client.${poolname2}.keyring -n client.${poolname2} --gen-key ; ceph-authtool -n client.${poolname2} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname2}' ${keyring_path}/ceph.client.${poolname2}.keyring ; ceph auth import -i ${keyring_path}/ceph.client.${poolname2}.keyring",
 }
 
-exec { "ceph-key-${poolname3}":
+exec { "ceph-create-key-${poolname3}":
     command => "ceph-authtool --create-keyring ${keyring_path}/ceph.client.${poolname3}.keyring",
     require => Exec["ceph-create-osd-pool"],
 }->
@@ -272,7 +282,7 @@ file { "/etc/ceph/ceph.client.${poolname3}.keyring":
     mode => "+r",
 }->
 exec { "ceph-authtool-${poolname3}":
-    command => "ceph-authtool ${keyring_path}/ceph.client.${poolname3}.keyring -n client.${poolname3} --gen-key ; ceph-authtool -n client.${poolname3} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname3}' ${keyring_path}/ceph.client.${poolname3}.keyring ; ceph auth add client.${poolname3} -i ${keyring_path}/ceph.client.${poolname3}.keyring",
+    command => "ceph-authtool ${keyring_path}/ceph.client.${poolname3}.keyring -n client.${poolname3} --gen-key ; ceph-authtool -n client.${poolname3} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname3}' ${keyring_path}/ceph.client.${poolname3}.keyring ; ceph auth import -i ${keyring_path}/ceph.client.${poolname3}.keyring",
 }
 
 #echo " --- Configuring Libvirt"
@@ -366,6 +376,5 @@ exec { "iptables-save":
   command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
   refreshonly => true,
 }
-
 
 
