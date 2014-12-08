@@ -130,6 +130,7 @@ define deploy_nodes() {
         command => "ceph-deploy new ${storage_node}",
         require => Package["ceph-deploy"],
         timeout => 1800,
+        onlyif  => "test ! -f /etc/ceph/ceph.conf"
     }
 }
 deploy_nodes{$storage_node_array:}
@@ -139,6 +140,7 @@ exec { "ceph-deploy-admin-install":
     command => "ceph-deploy install ${admin_node}",
     require => Package["ceph-deploy"],
     timeout => 1800,
+    onlyif  => "test ! -f /etc/ceph/ceph.conf",
 }
 
 define install_storage_nodes() {
@@ -148,6 +150,7 @@ define install_storage_nodes() {
         require => [ Package["ceph-libs"],
                      Exec["ceph-deploy-new-node-${title}"] ],
         timeout => 1800,
+        onlyif  => "test ! -f /etc/ceph/ceph.conf",
     }
 }
 
@@ -170,7 +173,8 @@ define deploy_monitor() {
     $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-deploy-monitor-create-${title}":
         command => "ceph-deploy --overwrite-conf mon create ${storage_node}",
-        require => Exec["ceph-deploy-storage-install-${title}"],
+        subscribe => Exec["ceph-deploy-storage-install-${title}"],
+        refreshonly => true,
     }
 }
 $first_node = $storage_node_array[0]
@@ -178,7 +182,8 @@ $gather_node = "$(grep -r ${first_node} /etc/hosts | awk '{print \$2}')"
 deploy_monitor{$storage_node_array:}
 exec { "ceph-deploy-monitor-gatherkeys-${first_node}":
     command => "ceph-deploy gatherkeys ${gather_node}",
-    require => Exec["ceph-deploy-monitor-create-${first_node}"],
+    subscribe => Exec["ceph-deploy-monitor-create-${first_node}"],
+    refreshonly => true,
     creates => [ "${current_dir}/ceph.client.admin.keyring",
                  "${current_dir}/ceph.bootstrap-osd.keyring",
                  "${current_dir}/ceph.bootstrap-mds.keyring" ],
@@ -193,19 +198,20 @@ define deploy_osd() {
     exec { "ceph-osd-prepare-${title}":
         command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:/var/local/osd0",
         require => [ Exec["ceph-deploy-storage-install-${title}"],
-                     Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
                      File["/etc/ceph"] ],
+        subscribe => Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
+        refreshonly => true,
     }->
     exec { "ceph-deploy-osd-${title}":
         command => "ceph-deploy osd activate ${storage_node}:/var/local/osd0",
-        require => Exec["ceph-osd-prepare-${title}"],
+        subscribe => Exec["ceph-osd-prepare-${title}"],
+        refreshonly => true,
     }->
-
     #echo " --- Copying the configuration file and admin key"
     exec { "ceph-deploy-admin-${title}":
         command => "ceph-deploy --overwrite-conf admin ${admin_node} ${storage_node}",
-        require => [ Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
-                     Exec["ceph-deploy-osd-${title}"] ],
+        subscribe => Exec["ceph-deploy-osd-${title}"],
+        refreshonly => true,
     }
 }
 deploy_osd{$storage_node_array:}->
@@ -218,8 +224,9 @@ define deploy_mds(){
     $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-deploy-mds-${title}":
         command => "ceph-deploy --overwrite-conf mds create ${storage_node}",
-        require => [ Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
-                     Exec["ceph-deploy-storage-install-${title}"] ],
+        subscribe => Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
+        require => Exec["ceph-deploy-storage-install-${title}"],
+        refreshonly => true,
     }
 }
 deploy_mds{$storage_node_array:}->
@@ -241,7 +248,8 @@ define config_push() {
     $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-config-push-${title}":
         command => "ceph-deploy --overwrite-conf config push ${storage_node}",
-        require => File_line["Append keyring info to /root/ceph.conf"],
+        subscribe => File_line["Append keyring info to /root/ceph.conf"],
+        refreshonly => true,
     }
 }
 config_push{$storage_node_array:}
@@ -254,8 +262,9 @@ $poolname3 = "backups"
 
 exec { "ceph-create-osd-pool":
     command => "ceph osd pool create ${poolname1} 128 ; ceph osd pool create ${poolname2} 128 ; ceph osd pool create ${poolname3} 128",
-    require => [ Package["ceph"],
-                 File_line ["Append keyring info to /root/ceph.conf"] ],
+    require => Package["ceph"],
+    subscribe => File_line ["Append keyring info to /root/ceph.conf"] ,
+    refreshonly => true,
 }
 
 #echo " --- Create a keyring and user for images, volumes and backups"
@@ -263,35 +272,44 @@ $keyring_path = "/etc/ceph"
 
 exec { "ceph-create-key-${poolname1}":
     command => "ceph-authtool --create-keyring ${keyring_path}/ceph.client.${poolname1}.keyring",
-    require => Exec["ceph-create-osd-pool"],
+    subscribe => Exec["ceph-create-osd-pool"],
+    refreshonly => true,
 }->
 file { "/etc/ceph/ceph.client.${poolname1}.keyring":
     mode => "+r",
 }->
 exec { "ceph-authtool-${poolname1}":
     command => "ceph-authtool ${keyring_path}/ceph.client.${poolname1}.keyring -n client.${poolname1} --gen-key ; ceph-authtool -n client.${poolname1} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname1}' ${keyring_path}/ceph.client.${poolname1}.keyring ; ceph auth import -i ${keyring_path}/ceph.client.${poolname1}.keyring",
+    subscribe => Exec["ceph-create-key-${poolname1}"],
+    refreshonly => true,
 }
 
 exec { "ceph-create-key-${poolname2}":
     command => "ceph-authtool --create-keyring ${keyring_path}/ceph.client.${poolname2}.keyring",
-    require => Exec["ceph-create-osd-pool"],
+    subscribe => Exec["ceph-create-osd-pool"],
+    refreshonly => true,
 }->
 file { "/etc/ceph/ceph.client.${poolname2}.keyring":
     mode => "+r",
 }->
 exec { "ceph-authtool-${poolname2}":
     command => "ceph-authtool ${keyring_path}/ceph.client.${poolname2}.keyring -n client.${poolname2} --gen-key ; ceph-authtool -n client.${poolname2} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname2}' ${keyring_path}/ceph.client.${poolname2}.keyring ; ceph auth import -i ${keyring_path}/ceph.client.${poolname2}.keyring",
+    subscribe => Exec["ceph-create-key-${poolname2}"],
+    refreshonly => true,
 }
 
 exec { "ceph-create-key-${poolname3}":
     command => "ceph-authtool --create-keyring ${keyring_path}/ceph.client.${poolname3}.keyring",
-    require => Exec["ceph-create-osd-pool"],
+    subscribe => Exec["ceph-create-osd-pool"],
+    refreshonly => true,
 }->
 file { "/etc/ceph/ceph.client.${poolname3}.keyring":
     mode => "+r",
 }->
 exec { "ceph-authtool-${poolname3}":
     command => "ceph-authtool ${keyring_path}/ceph.client.${poolname3}.keyring -n client.${poolname3} --gen-key ; ceph-authtool -n client.${poolname3} --cap mon 'allow r' --cap osd 'allow class-read object_prefix rbd_children, allow rwx  pool=${poolname3}' ${keyring_path}/ceph.client.${poolname3}.keyring ; ceph auth import -i ${keyring_path}/ceph.client.${poolname3}.keyring",
+    subscribe => Exec["ceph-create-key-${poolname3}"],
+    refreshonly => true,
 }
 
 #echo " --- Configuring Libvirt"
@@ -345,21 +363,15 @@ exec { "virsh":
 exec { "virsh2":
     command => "virsh secret-set-value --secret ${rbd_secret_uuid} --base64 `/bin/cat client.volumes.key`",
     returns => [ "0", "1", ],
-    require => Exec ["virsh"],
+    subscribe => Exec ["virsh"],
+    refreshonly => true,
 }
 
 exec { "ceph-osd-libvirt-pool":
     command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
     returns => [ "0", "1", ],
     require =>  Package["ceph"],
-                 #Service["libvirt"] ],
 }
-
-#echo " --- Solving ceilometer-api dateutil issue"
-/*package { "python-dateutil":
-    ensure => latest,
-    provider => "pip",
-}*/
 
 firewall { "00000 Ceph monitor on port 6789":
   chain    => "INPUT",
