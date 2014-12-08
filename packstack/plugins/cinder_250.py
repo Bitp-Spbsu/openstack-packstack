@@ -406,4 +406,3 @@ def create_ceph_preflight_manifest(config, messages):
         manifest_data += getManifestTemplate("firewall.pp")
         appendManifestFile(manifest_file, manifest_data)
 
-

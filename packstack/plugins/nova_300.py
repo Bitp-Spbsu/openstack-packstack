@@ -668,4 +668,3 @@ def create_ceph_manifest(config, messages):
     
     manifestfile = "%s_nova.pp" % config['CONFIG_CONTROLLER_HOST']
     appendManifestFile(manifestfile, manifestdata)
-

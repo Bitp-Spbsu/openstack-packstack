@@ -78,6 +78,7 @@ package { "ntp-doc":
 }
 service { "ntpd":
     ensure => stopped,
+    require => Package["ntp"],
 }
 exec { "ntpdate":
     command => "ntpdate -b 0.ua.pool.ntp.org",
@@ -88,7 +89,6 @@ exec { "ntpd-on":
     command => "/etc/init.d/ntpd start",
     require => Exec["ntpdate"],
 }
-
 
 #echo " --- Checking ssh server"
 package { "openssh-server":

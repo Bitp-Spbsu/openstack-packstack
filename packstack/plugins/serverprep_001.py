@@ -32,7 +32,7 @@ def initConfig(controller):
              "PROMPT": "To subscribe each server to EPEL enter \"y\"",
              "OPTION_LIST": ["y", "n"],
              "VALIDATORS": [validators.validate_options],
-             "DEFAULT_VALUE": "n",
+             "DEFAULT_VALUE": "y",
              "MASK_INPUT": False,
              "LOOSE_VALIDATION": True,
              "CONF_NAME": "CONFIG_USE_EPEL",

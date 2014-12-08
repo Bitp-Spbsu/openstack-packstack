@@ -48,5 +48,3 @@ service { "openstack-service":
     ensure => "running",
     start => "/usr/bin/openstack-service start",
 }
-
-

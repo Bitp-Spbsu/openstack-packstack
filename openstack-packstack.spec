@@ -1,12 +1,12 @@
 %global with_doc %{!?_without_doc:1}%{?_without_doc:0}
-%global git_revno 1238
+%global git_revno 1258
 
 
 # openstack-packstack ----------------------------------------------------------
 
 Name:           openstack-packstack
 Version:        2014.1.1
-Release:        0.28.dev%{git_revno}%{?dist}
+Release:        0.30.dev%{git_revno}%{?dist}
 Summary:        Openstack Install Utility
 
 Group:          Applications/System
@@ -66,7 +66,9 @@ This package contains documentation files for Packstack.
 
 %prep
 %setup -n packstack-%{version}dev%{git_revno}
+%if 0%{?rhel}
 %patch0 -p1
+%endif
 %patch1 -p1
 
 # Sanitizing a lot of the files in the puppet modules
@@ -141,6 +143,28 @@ install -p -D -m 644 docs/_build/man/*.1 %{buildroot}%{_mandir}/man1/
 # changelog --------------------------------------------------------------------
 
 %changelog
+* Sun Oct 19 2014 Martin Mágr <mmagr@redhat.com> - 2014.1.1-0.30.dev1258
+- [MariaDB] Reverts InnoDB performance setting
+- [Neutron] Load bridge module (rhbz#1123465)
+- [Packstack] Use a valid e-mail for admin user in keystone (rhbz#1020199)
+- [Packstack] Fix Warning when NetworkManager is active on hosts (rhbz#1130589, rhbz#1117115)
+- [Neutron] Adds usage examples for CONFIG_NEUTRON_L2_PLUGIN (rhbz#1066019)
+
+* Thu Oct 16 2014 Iván Chavero <ichavero@redhat.com> - 2014.1.1-0.29.1.dev1251
+- Add enable-epel.patch only for RHEL
+
+* Mon Sep 15 2014 Martin Mágr <mmagr@redhat.com> - 2014.1.1-0.29.dev1251
+- [MariaDB] Deprecates MySQL parameters in favor of MariaDB (rhbz#1102486)
+- [Swift] Missing validator (rhbz#1128303)
+- [Neutron] Applies packstack::neutron::bridge class to network hosts (rhbz#1133968)
+- [Firewall] Enable API services to all hosts (rhbz#1099787, rhbz#1134433)
+- [Packstack] Unsupported option (rhbz#1131866)
+- [Packstack] RHSM HTTP proxy (rhbz#1123875)
+- [Neutron] Correct value of $public_bridge_name (lp#1360107)
+- [Horizon] Sets up NOVNC with https when using SSL on HORIZON (rhbz#1115896)
+- [Packstack] Install and update packages required by packstack (rhbz#1132408)
+- [Neutron] Add ignore unknown variables errors switch (rhbz#1132129)
+
 * Mon Aug 18 2014  Iván Chavero <ichavero@redhat.com> - 2014.1.1-0.28.dev1238
 - Fixed installation of puppet-remote module (rhbz#1128212)
 
@@ -232,6 +256,9 @@ install -p -D -m 644 docs/_build/man/*.1 %{buildroot}%{_mandir}/man1/
 - [Neutron] Added Neutron FWaaS (rhbz#1098765)
 - [Nagios] updating nagios checks for cinder and glance to list all items not just the admins
 
+* Sat Jun 07 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 2014.1.1-0.17.dev1109
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_Mass_Rebuild
+
 * Wed Jun 04 2014 Martin Mágr <mmagr@redhat.com> - 2014.1.1-0.16.dev1109
 - [Packstack] Fixes language parsing problems
 - [Neutron] Fixed firewall protocols (rhbz#1100993)
@@ -301,7 +328,7 @@ install -p -D -m 644 docs/_build/man/*.1 %{buildroot}%{_mandir}/man1/
 - Removed heat-qpid.patch
 
 * Tue Mar 25 2014 Pádraig Brady <pbrady@redhat.com> - 2014.1.1-0.4.dev1018
-- Enable EPEL by default
+- Disable swift
 
 * Sat Mar 22 2014 Pádraig Brady <pbrady@redhat.com> - 2014.1.1-0.3.dev1018
 - Fix failure with heat qpid configuration
