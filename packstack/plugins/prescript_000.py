@@ -437,6 +437,79 @@ def initConfig(controller):
              "USE_DEFAULT": False,
              "NEED_CONFIRM": False,
              "CONDITION": False},
+
+             {"CONF_NAME": "CONFIG_CEPH_STORAGE_HOSTS",
+             "CMD_OPTION": "os-ceph-hosts",
+             "USAGE": (
+                "The list of IP addresses of the server on which to install"
+                " Ceph storage service"
+             ),
+             "PROMPT": (
+                "Enter list of IP addresses on which to install storage "
+                "service"
+             ),
+             "OPTION_LIST": [],
+             "VALIDATORS": [validators.validate_multi_ip,
+                            validators.validate_multi_ssh],
+             "DEFAULT_VALUE": utils.get_localhost_ip(),
+             "MASK_INPUT": False,
+             "LOOSE_VALIDATION": False,
+             "USE_DEFAULT": False,
+             "NEED_CONFIRM": False,
+             "CONDITION": False},
+
+             {"CONF_NAME": "CONFIG_CEPH_CLUSTERNETWORK",
+             "CMD_OPTION": "os-ceph-clusternetwork",
+             "USAGE": (
+                "IP address of Ceph cluster network"
+             ),
+             "PROMPT": (
+                "Enter IP address of Ceph cluster network"
+             ),
+             "OPTION_LIST": [],
+             "VALIDATORS": [validators.validate_ip],
+             "DEFAULT_VALUE": utils.get_localhost_ip(),
+             "MASK_INPUT": False,
+             "LOOSE_VALIDATION": False,
+             "USE_DEFAULT": False,
+             "NEED_CONFIRM": False,
+             "CONDITION": False},
+
+             {"CONF_NAME": "CONFIG_CEPH_PUBNETWORK",
+             "CMD_OPTION": "os-ceph-pubnetwork",
+             "USAGE": (
+                "IP address of Ceph public network"
+             ),
+             "PROMPT": (
+                "Enter IP address of Ceph public network"
+             ),
+             "OPTION_LIST": [],
+             "VALIDATORS": [validators.validate_ip],
+             "DEFAULT_VALUE": utils.get_localhost_ip(),
+             "MASK_INPUT": False,
+             "LOOSE_VALIDATION": False,
+             "USE_DEFAULT": False,
+             "NEED_CONFIRM": False,
+             "CONDITION": False},
+
+             {"CONF_NAME": "CONFIG_CEPH_MOUNT_POINT",
+             "CMD_OPTION": "ceph_mount-point",
+             "USAGE": (
+                "Path to a directory to mount ceph storage"
+             ),
+             "PROMPT": (
+                "Enter the path to directory to mount ceph storage"
+             ),
+             "OPTION_LIST": [],
+             "VALIDATORS": [validators.validate_not_empty],
+             "DEFAULT_VALUE": "/var/local",
+             "MASK_INPUT": False,
+             "LOOSE_VALIDATION": False,
+             "USE_DEFAULT": False,
+             "NEED_CONFIRM": False,
+             "CONDITION": False},
+
+
         ],
 
         "VMWARE": [
@@ -670,3 +743,5 @@ def create_ntp_manifest(config, messages):
         appendManifestFile('%s_ntpd.pp' % hostname,
                            manifestdata,
                            marker=marker)
+
+

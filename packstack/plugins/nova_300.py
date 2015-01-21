@@ -665,6 +665,8 @@ def create_ceph_manifest(config, messages):
             config['CONFIG_CINDER_INSTALL'] == 'y' and
             config['CONFIG_CINDER_BACKEND'] == 'ceph'):
         manifestdata = getManifestTemplate("nova_ceph.pp")
-    
+
     manifestfile = "%s_nova.pp" % config['CONFIG_CONTROLLER_HOST']
     appendManifestFile(manifestfile, manifestdata)
+
+

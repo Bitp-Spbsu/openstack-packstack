@@ -3,7 +3,7 @@ $rbd_secret_uuid=generate("/bin/cat", "/root/rbd.secret.uuid")
 cinder_config {
   "DEFAULT/volume_driver":                      value => "cinder.volume.drivers.rbd.RBDDriver";
   "DEFAULT/rbd_user":                           value => "volumes";
-  "DEFAULT/rbd_secret_uuid":                    value => "${rbd_secret_uuid}"; # !!!
+  "DEFAULT/rbd_secret_uuid":                    value => "${rbd_secret_uuid}";
   "DEFAULT/rbd_pool":                           value => "volumes";
   "DEFAULT/rbd_ceph_conf":                      value => "/etc/ceph/ceph.conf";
   "DEFAULT/rbd_flatten_volume_from_snapshot":   value => "false";
@@ -20,8 +20,7 @@ cinder_config {
 }->
 nova_config {
   "DEFAULT/rbd_user":                           value => "volumes";
-  "DEFAULT/rbd_secret_uuid":                    value => "${rbd_secret_uuid}"; # !!!
-  
+  "DEFAULT/rbd_secret_uuid":                    value => "${rbd_secret_uuid}";
   "libvirt/libvirt_images_type":                value => "rbd";
   "libvirt/libvirt_images_rbd_pool":            value => "volumes";
   "libvirt/libvirt_images_rbd_ceph_conf":       value => "/etc/ceph/ceph.conf";
@@ -41,10 +40,11 @@ file { ["/root/client.volumes.key",
         "/root/virsh.result",
         "/root/rbd.secret.uuid"]:
     ensure => absent,
-    notify => Service["openstack-service"],
+    before => Service["openstack-service"],
 }
 service { "openstack-service":
     restart => "/usr/bin/openstack-service restart",
     ensure => "running",
     start => "/usr/bin/openstack-service start",
 }
+

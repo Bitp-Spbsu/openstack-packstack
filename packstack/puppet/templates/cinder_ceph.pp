@@ -1,10 +1,19 @@
 Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin" }
 
 $admin_node = "${hostname}"
-$storage_node = "%(CONFIG_STORAGE_HOST)s"
+$storage_node = "%(CONFIG_CEPH_STORAGE_HOSTS)s"
 $storage_node_array = split("${storage_node}", ",")
+$grep_prepare=regsubst($storage_node, ',', ' -e ')
+#$all_storage_nodes = "$(grep -e ${grep_prepare} /etc/hosts | awk '{print \$2}' | tr '\n' ' ')"
+$all_storage_nodes = "grep -e ${grep_prepare} /etc/hosts | awk '{print \$2}'"
+$first_node = $storage_node_array[0]
+$gather_node = "$(grep -r ${first_node} /etc/hosts | awk '{print \$2}')"
 $current_dir = "/root"
 $basearch = "x86_64"
+$public_network = "%(CONFIG_CEPH_PUBNETWORK)s"
+$cluster_network = "%(CONFIG_CEPH_CLUSTERNETWORK)s"
+$mount_point = "%(CONFIG_CEPH_MOUNT_POINT)s"
+
 
 file { "/etc/yum.repos.d/ceph.repo":
     ensure => absent,
@@ -95,11 +104,6 @@ package { "openssh-server":
     ensure => installed,
 }
 
-#echo " --- Creating ceph user"
-user { "ceph":
-    ensure => present,
-}
-
 #echo " --- Installing RDO"
 package { "rdo-release":
     ensure => installed,
@@ -123,66 +127,59 @@ package { "ceph":
     require => Package["ceph-deploy"],
 }
 
-#echo " --- Deploying new node"
-define deploy_nodes() {
-    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
-    exec { "ceph-deploy-new-node-${title}":
-        command => "ceph-deploy new ${storage_node}",
-        require => Package["ceph-deploy"],
-        timeout => 1800,
-        onlyif  => "test ! -f /etc/ceph/ceph.conf"
-    }
+exec { "start":
+    command => "echo 'Start installation'",
+    onlyif  => "test ! -f /etc/ceph/ceph.conf"
 }
-deploy_nodes{$storage_node_array:}
+#echo " --- Deploying new node"
+    exec { "ceph-deploy-new-node":
+        command => "ceph-deploy new $(${all_storage_nodes})",
+        require => Package["ceph-deploy"],
+        subscribe => Exec["start"],
+        timeout => 1800,
+        refreshonly => true,
+    }
 
 #echo " --- Installing CEPH"
 exec { "ceph-deploy-admin-install":
     command => "ceph-deploy install ${admin_node}",
     require => Package["ceph-deploy"],
+    subscribe => Exec["start"],
     timeout => 1800,
-    onlyif  => "test ! -f /etc/ceph/ceph.conf",
+    refreshonly => true,
 }
 
-define install_storage_nodes() {
-    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
-    exec { "ceph-deploy-storage-install-${title}":
-        command => "ceph-deploy install ${storage_node}",
-        require => [ Package["ceph-libs"],
-                     Exec["ceph-deploy-new-node-${title}"] ],
-        timeout => 1800,
-        onlyif  => "test ! -f /etc/ceph/ceph.conf",
-    }
+exec { "ceph-deploy-storage-install":
+    command => "ceph-deploy install $(${all_storage_nodes})",
+    require => Package["ceph-libs"],
+    subscribe => Exec["ceph-deploy-new-node"],
+    timeout => 1800,
+    refreshonly => true,
 }
 
-install_storage_nodes{$storage_node_array:}
 #echo " --- Modifying ceph.conf"
 file { "/root/ceph.conf":
     ensure => present,
-    require => Exec["ceph-deploy-admin-install"],
+    subscribe => Exec["ceph-deploy-new-node"],
 } ->
 file_line { "Append a line to /root/ceph.conf":
     path => "/root/ceph.conf",
     line =>
 "osd pool default size = 1
-public network = 194.44.37.0/24
-cluster network = 10.1.1.0/24",
+public network = ${public_network}/24
+cluster network = ${cluster_network}/24",
+    subscribe => File["/root/ceph.conf"],
 }
 
 #echo " --- Adding the initial monitor and gathering the keys"
-define deploy_monitor() {
-    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
-    exec { "ceph-deploy-monitor-create-${title}":
-        command => "ceph-deploy --overwrite-conf mon create ${storage_node}",
-        subscribe => Exec["ceph-deploy-storage-install-${title}"],
-        refreshonly => true,
-    }
+exec { "ceph-deploy-monitor-create":
+    command => "ceph-deploy --overwrite-conf mon create $(${all_storage_nodes})",
+    subscribe => Exec["ceph-deploy-storage-install"],
+    refreshonly => true,
 }
-$first_node = $storage_node_array[0]
-$gather_node = "$(grep -r ${first_node} /etc/hosts | awk '{print \$2}')"
-deploy_monitor{$storage_node_array:}
-exec { "ceph-deploy-monitor-gatherkeys-${first_node}":
-    command => "ceph-deploy gatherkeys ${gather_node}",
-    subscribe => Exec["ceph-deploy-monitor-create-${first_node}"],
+exec { "ceph-deploy-monitor-gatherkeys":
+    command => "sleep 30; ceph-deploy gatherkeys $(${all_storage_nodes})",
+    subscribe => Exec["ceph-deploy-monitor-create"],
     refreshonly => true,
     creates => [ "${current_dir}/ceph.client.admin.keyring",
                  "${current_dir}/ceph.bootstrap-osd.keyring",
@@ -196,14 +193,14 @@ file { "/etc/ceph":
 define deploy_osd() {
     $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-osd-prepare-${title}":
-        command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:/var/local/osd0",
-        require => [ Exec["ceph-deploy-storage-install-${title}"],
+        command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:${mount_point}/osd0",
+        require => [ Exec["ceph-deploy-storage-install"],
                      File["/etc/ceph"] ],
-        subscribe => Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
+        subscribe => Exec["ceph-deploy-monitor-gatherkeys"],
         refreshonly => true,
     }->
     exec { "ceph-deploy-osd-${title}":
-        command => "ceph-deploy osd activate ${storage_node}:/var/local/osd0",
+        command => "ceph-deploy osd activate ${storage_node}:${mount_point}/osd0",
         subscribe => Exec["ceph-osd-prepare-${title}"],
         refreshonly => true,
     }->
@@ -219,17 +216,14 @@ file { "/etc/ceph/ceph.client.admin.keyring":
     mode => "+r",
 }
 
-define deploy_mds(){
-    #echo " --- Adding a Metadata Server"
-    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
-    exec { "ceph-deploy-mds-${title}":
-        command => "ceph-deploy --overwrite-conf mds create ${storage_node}",
-        subscribe => Exec["ceph-deploy-monitor-gatherkeys-${first_node}"],
-        require => Exec["ceph-deploy-storage-install-${title}"],
-        refreshonly => true,
-    }
+#echo " --- Adding a Metadata Server"
+exec { "ceph-deploy-mds":
+    command => "ceph-deploy --overwrite-conf mds create $(${all_storage_nodes})",
+    subscribe => Exec["ceph-deploy-monitor-gatherkeys"],
+    require => Exec["ceph-deploy-storage-install"],
+    refreshonly => true,
+    timeout     => 1800,
 }
-deploy_mds{$storage_node_array:}->
 file_line { "Append keyring info to /root/ceph.conf":
     path => "/root/ceph.conf",
     line =>
@@ -241,7 +235,8 @@ keyring = /etc/ceph/ceph.client.volumes.keyring
 
 [client.backups]
 keyring = /etc/ceph/ceph.client.backups.keyring",
-    require => File["/root/ceph.conf"],
+#    subscribe => File["/etc/ceph/ceph.client.admin.keyring"],
+    subscribe => Exec["ceph-deploy-monitor-gatherkeys"],
 }
 
 define config_push() {
@@ -262,7 +257,8 @@ $poolname3 = "backups"
 
 exec { "ceph-create-osd-pool":
     command => "ceph osd pool create ${poolname1} 128 ; ceph osd pool create ${poolname2} 128 ; ceph osd pool create ${poolname3} 128",
-    require => Package["ceph"],
+    require => [ Package["ceph"],
+                 Exec["ceph-deploy-storage-install"] ],
     subscribe => File_line ["Append keyring info to /root/ceph.conf"] ,
     refreshonly => true,
 }
@@ -327,7 +323,7 @@ augeas { "sudo/requiretty":
 }
 exec { "client-volumes-key":
     command => "ceph auth get-key client.volumes | tee client.volumes.key",
-    require => [ #Exec["ceph-authtool-volumes"],
+    require => [ Exec["ceph-authtool-volumes"],
                  Package["ceph"],
                  ],
 #    before => Exec["virsh"],
@@ -371,6 +367,8 @@ exec { "ceph-osd-libvirt-pool":
     command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
     returns => [ "0", "1", ],
     require =>  Package["ceph"],
+    subscribe => Exec ["virsh2"],
+    refreshonly => true,
 }
 
 firewall { "00000 Ceph monitor on port 6789":
@@ -397,5 +395,4 @@ exec { "iptables-save":
   command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
   refreshonly => true,
 }
-
 
