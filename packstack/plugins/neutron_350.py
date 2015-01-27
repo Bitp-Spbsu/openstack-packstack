@@ -599,6 +599,8 @@ def initSequences(controller):
          'functions': [create_metadata_manifests]},
         {'title': 'Checking if NetworkManager is enabled and running',
          'functions': [check_nm_status]},
+        {'title': 'Adding Neutron ML2 options',
+         'functions': [add_ml2_options]},
     ]
     controller.addSequence("Installing OpenStack Neutron", [], [],
                            neutron_steps)
@@ -990,3 +992,13 @@ def check_nm_status(config, messages):
         hosts_list = ', '.join("%s" % x for x in hosts_with_nm)
         msg = output_messages.WARN_NM_ENABLED
         messages.append(utils.color_text(msg % hosts_list, 'yellow'))
+
+
+def add_ml2_options(config, messages):
+    for host in q_hosts:
+        if host in api_hosts:
+            manifest_file = "%s_neutron.pp" % (host,)
+            if config['CONFIG_NEUTRON_L2_PLUGIN'] == 'ml2':
+               manifest_data = getManifestTemplate('neutron_ml2_options.pp')
+
+
