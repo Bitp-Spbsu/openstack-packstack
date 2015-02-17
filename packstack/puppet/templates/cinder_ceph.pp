@@ -4,10 +4,9 @@ $admin_node = "${hostname}"
 $storage_node = "%(CONFIG_CEPH_STORAGE_HOSTS)s"
 $storage_node_array = split("${storage_node}", ",")
 $grep_prepare=regsubst($storage_node, ',', ' -e ')
-#$all_storage_nodes = "$(grep -e ${grep_prepare} /etc/hosts | awk '{print \$2}' | tr '\n' ' ')"
-$all_storage_nodes = "grep -e ${grep_prepare} /etc/hosts | awk '{print \$2}'"
+$all_storage_nodes = "grep -we ${grep_prepare} /etc/hosts | awk '{print \$2}'"
 $first_node = $storage_node_array[0]
-$gather_node = "$(grep -r ${first_node} /etc/hosts | awk '{print \$2}')"
+$gather_node = "$(grep -we ${first_node} /etc/hosts | awk '{print \$2}')"
 $current_dir = "/root"
 $basearch = "x86_64"
 $public_network = "%(CONFIG_CEPH_PUBNETWORK)s"
@@ -191,7 +190,7 @@ file { "/etc/ceph":
 }
 #echo " --- Creating OSD"
 define deploy_osd() {
-    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
+    $storage_node="$(grep -we ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-osd-prepare-${title}":
         command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:${mount_point}/osd0",
         require => [ Exec["ceph-deploy-storage-install"],
@@ -391,4 +390,5 @@ exec { "iptables-save":
   command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
   refreshonly => true,
 }
+
 
