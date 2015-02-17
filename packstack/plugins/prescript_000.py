@@ -740,6 +740,4 @@ def create_ntp_manifest(config, messages):
     marker = uuid.uuid4().hex[:16]
     for hostname in filtered_hosts(config):
         manifestdata = getManifestTemplate('ntpd.pp')
-        appendManifestFile('%s_ntpd.pp' % hostname,
-                           manifestdata,
  
