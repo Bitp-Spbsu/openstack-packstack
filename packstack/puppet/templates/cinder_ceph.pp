@@ -239,15 +239,11 @@ keyring = /etc/ceph/ceph.client.backups.keyring",
     subscribe => Exec["ceph-deploy-monitor-gatherkeys"],
 }
 
-define config_push() {
-    $storage_node="$(grep -r ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-config-push-${title}":
-        command => "ceph-deploy --overwrite-conf config push ${storage_node}",
+        command => "ceph-deploy --overwrite-conf config push $(${all_storage_nodes})",
         subscribe => File_line["Append keyring info to /root/ceph.conf"],
         refreshonly => true,
     }
-}
-config_push{$storage_node_array:}
 
 
 #echo " --- Create pools"
@@ -259,7 +255,7 @@ exec { "ceph-create-osd-pool":
     command => "ceph osd pool create ${poolname1} 128 ; ceph osd pool create ${poolname2} 128 ; ceph osd pool create ${poolname3} 128",
     require => [ Package["ceph"],
                  Exec["ceph-deploy-storage-install"] ],
-    subscribe => File_line ["Append keyring info to /root/ceph.conf"] ,
+    subscribe => Deploy_osd[$storage_node_array] ,
     refreshonly => true,
 }
 

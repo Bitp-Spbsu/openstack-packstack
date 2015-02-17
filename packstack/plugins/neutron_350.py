@@ -755,9 +755,6 @@ def create_manifests(config, messages):
         if host in api_hosts:
             manifest_file = "%s_neutron.pp" % (host,)
             manifest_data = getManifestTemplate("neutron_api.pp")
-            if config['CONFIG_NOVA_INSTALL'] == 'y':
-                template_name = "neutron_notifications.pp"
-                manifest_data += getManifestTemplate(template_name)
 
             # Set up any l2 plugin configs we need only on neutron api nodes
             # XXX I am not completely sure about this, but it seems necessary:
@@ -1000,5 +997,5 @@ def add_ml2_options(config, messages):
             manifest_file = "%s_neutron.pp" % (host,)
             if config['CONFIG_NEUTRON_L2_PLUGIN'] == 'ml2':
                manifest_data = getManifestTemplate('neutron_ml2_options.pp')
-
+               #appendManifestFile(manifest_file, manifest_data, 'neutron')
 

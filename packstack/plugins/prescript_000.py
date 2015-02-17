@@ -742,6 +742,4 @@ def create_ntp_manifest(config, messages):
         manifestdata = getManifestTemplate('ntpd.pp')
         appendManifestFile('%s_ntpd.pp' % hostname,
                            manifestdata,
-                           marker=marker)
-
-
+ 
