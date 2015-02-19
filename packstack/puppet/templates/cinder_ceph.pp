@@ -8,21 +8,21 @@ $all_storage_nodes = "grep -we ${grep_prepare} /etc/hosts | awk '{print \$2}'"
 $first_node = $storage_node_array[0]
 $gather_node = "$(grep -we ${first_node} /etc/hosts | awk '{print \$2}')"
 $current_dir = "/root"
-$basearch = "x86_64"
 $public_network = "%(CONFIG_CEPH_PUBNETWORK)s"
 $cluster_network = "%(CONFIG_CEPH_CLUSTERNETWORK)s"
 $mount_point = "%(CONFIG_CEPH_MOUNT_POINT)s"
-
+$ceph_release = "giant"
+$distro = "el6"
 
 file { "/etc/yum.repos.d/ceph.repo":
     ensure => absent,
 }
 
 yumrepo { "ceph":
-    descr => "Ceph packages for ${basearch}",
+    descr => "Ceph packages for \$basearch",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/${basearch}",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/\$basearch",
     priority => "1",
     gpgcheck => 1,
     ensure => present,
@@ -33,7 +33,7 @@ yumrepo { "ceph-source":
     descr => "Ceph source packages",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/SRPMS",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/SRPMS",
     priority => 1,
     gpgcheck => 1,
     ensure => present,
@@ -44,7 +44,7 @@ yumrepo { "ceph-noarch":
     descr => "Ceph noarch packages",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/noarch",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/noarch",
     priority => 1,
     gpgcheck => 1,
     ensure => present,
@@ -56,7 +56,7 @@ yumrepo { "ceph-extras":
     descr => "Ceph Extras",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-firefly/el6/${basearch}",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/\$basearch",
     priority => 2,
     gpgcheck => 1,
     ensure => present,
