@@ -3,8 +3,8 @@ Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/ro
 $admin_node = "${hostname}"
 $storage_node = "%(CONFIG_CEPH_STORAGE_HOSTS)s"
 $storage_node_array = split("${storage_node}", ",")
-$grep_prepare=regsubst($storage_node, ',', ' -e ')
-$all_storage_nodes = "grep -we ${grep_prepare} /etc/hosts | awk '{print \$2}'"
+$grep_prepare=regsubst($storage_node, ',', ' -we ')
+$all_storage_nodes = "grep -we ${grep_prepare} /etc/hosts | awk '{print \$2}' | tr \"\\n\" \" \""
 $first_node = $storage_node_array[0]
 $gather_node = "$(grep -we ${first_node} /etc/hosts | awk '{print \$2}')"
 $current_dir = "/root"
@@ -170,10 +170,21 @@ cluster network = ${cluster_network}/24",
     subscribe => File["/root/ceph.conf"],
 }
 
+define make_dir() {
+    $storage_node="$(grep -we ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "ceph-mkdir-${title}":
+        command => "ssh ${storage_node} 'mkdir -p ${mount_point}/osd.${title}.0 /etc/ceph /var/lib/ceph/osd /var/lib/ceph/mds'",
+        subscribe => Exec["ceph-deploy-storage-install"],
+        refreshonly => true,
+    }
+}
+make_dir {$storage_node_array:}
+
 #echo " --- Adding the initial monitor and gathering the keys"
 exec { "ceph-deploy-monitor-create":
-    command => "ceph-deploy --overwrite-conf mon create $(${all_storage_nodes})",
-    subscribe => Exec["ceph-deploy-storage-install"],
+    command => "mkdir -p /etc/ceph; ceph-deploy --overwrite-conf mon create $(${all_storage_nodes})",
+#    subscribe => Exec["ceph-deploy-storage-install"],
+    subscribe => Make_dir[$storage_node_array],
     refreshonly => true,
 }
 exec { "ceph-deploy-monitor-gatherkeys":
@@ -192,20 +203,20 @@ file { "/etc/ceph":
 define deploy_osd() {
     $storage_node="$(grep -we ${title} /etc/hosts | awk '{print \$2}')"
     exec { "ceph-osd-prepare-${title}":
-        command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:${mount_point}/osd0",
+        command => "ceph-deploy --overwrite-conf osd prepare ${storage_node}:${mount_point}/osd.${title}.0",
         require => [ Exec["ceph-deploy-storage-install"],
                      File["/etc/ceph"] ],
         subscribe => Exec["ceph-deploy-monitor-gatherkeys"],
         refreshonly => true,
     }->
     exec { "ceph-deploy-osd-${title}":
-        command => "ceph-deploy osd activate ${storage_node}:${mount_point}/osd0",
+        command => "ceph-deploy osd activate ${storage_node}:${mount_point}/osd.${title}.0",
         subscribe => Exec["ceph-osd-prepare-${title}"],
         refreshonly => true,
     }->
     #echo " --- Copying the configuration file and admin key"
     exec { "ceph-deploy-admin-${title}":
-        command => "ceph-deploy --overwrite-conf admin ${admin_node} ${storage_node}",
+        command => "ceph-deploy --overwrite-conf admin ${admin_node} ${all_storage_nodes}",
         subscribe => Exec["ceph-deploy-osd-${title}"],
         refreshonly => true,
     }
@@ -390,5 +401,4 @@ exec { "iptables-save":
   command  => "/sbin/iptables-save > /etc/sysconfig/iptables",
   refreshonly => true,
 }
-
 
