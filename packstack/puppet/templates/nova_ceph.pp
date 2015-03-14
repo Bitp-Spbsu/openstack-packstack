@@ -1,4 +1,18 @@
-$rbd_secret_uuid=generate("/bin/cat", "/root/rbd.secret.uuid")
+Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin" }
+
+$rbd_secret_uuid="$(/bin/cat /root/rbd.secret.uuid | tr \"\\n\" \" \")"
+
+exec { "virsh":
+    command => "virsh secret-set-value --secret ${rbd_secret_uuid} --base64 `/bin/cat client.volumes.key`",
+    returns => [ "0", "1", ],
+}
+
+exec { "ceph-osd-libvirt-pool":
+    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
+    returns => [ "0", "1", ],
+    subscribe => Exec ["virsh"],
+    refreshonly => true,
+}
 
 cinder_config {
   "DEFAULT/volume_driver":                      value => "cinder.volume.drivers.rbd.RBDDriver";
@@ -29,23 +43,23 @@ nova_config {
   "libvirt/libvirt_inject_partition":           value => "-2";
 }->
 glance_api_config {
-  "DEFAULT/default_store": value => "rbd";
-  "DEFAULT/rbd_store_user": value => "images";
-  "DEFAULT/rbd_store_pool": value => "images";
-  "DEFAULT/show_image_direct_url": value => "True";
-  "DEFAULT/rbd_store_ceph_conf": value => "/etc/ceph/ceph.conf";
-  "DEFAULT/rbd_store_chunk_size": value => "8";
+  "DEFAULT/default_store": 			value => "rbd";
+  "DEFAULT/rbd_store_user": 			value => "images";
+  "DEFAULT/rbd_store_pool": 			value => "images";
+  "DEFAULT/show_image_direct_url": 		value => "True";
+  "DEFAULT/rbd_store_ceph_conf": 		value => "/etc/ceph/ceph.conf";
+  "DEFAULT/rbd_store_chunk_size": 		value => "8";
 }->
 file { ["/root/client.volumes.key",
         "/root/virsh.result",
         "/root/rbd.secret.uuid"]:
     ensure => absent,
-    before => Service["openstack-service"],
+    before => Exec["openstack-service-restart"],
+    require => [ Exec["virsh"],
+               Exec["ceph-osd-libvirt-pool"] ]
 }
-service { "openstack-service":
-    restart => "/usr/bin/openstack-service restart",
-    ensure => "running",
-    start => "/usr/bin/openstack-service start",
+exec { "openstack-service-restart":
+    command => "/usr/bin/openstack-service restart",
 }
 
 

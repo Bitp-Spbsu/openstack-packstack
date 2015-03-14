@@ -3,7 +3,7 @@ Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/ro
 $admin_node = "${hostname}"
 $storage_node = "%(CONFIG_CEPH_STORAGE_HOSTS)s"
 $storage_node_array = split("${storage_node}", ",")
-$grep_prepare=regsubst($storage_node, ',', ' -we ')
+$grep_prepare=regsubst($storage_node, ',', ' -we ', 'G')
 $all_storage_nodes = "grep -we ${grep_prepare} /etc/hosts | awk '{print \$2}' | tr \"\\n\" \" \""
 $first_node = $storage_node_array[0]
 $gather_node = "$(grep -we ${first_node} /etc/hosts | awk '{print \$2}')"
@@ -12,7 +12,6 @@ $public_network = "%(CONFIG_CEPH_PUBNETWORK)s"
 $cluster_network = "%(CONFIG_CEPH_CLUSTERNETWORK)s"
 $mount_point = "%(CONFIG_CEPH_MOUNT_POINT)s"
 $ceph_release = "giant"
-$distro = "el6"
 
 file { "/etc/yum.repos.d/ceph.repo":
     ensure => absent,
@@ -22,7 +21,7 @@ yumrepo { "ceph":
     descr => "Ceph packages for \$basearch",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/\$basearch",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/el$::operatingsystemmajrelease/\$basearch",
     priority => "1",
     gpgcheck => 1,
     ensure => present,
@@ -33,7 +32,7 @@ yumrepo { "ceph-source":
     descr => "Ceph source packages",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/SRPMS",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/el$::operatingsystemmajrelease/SRPMS",
     priority => 1,
     gpgcheck => 1,
     ensure => present,
@@ -44,7 +43,7 @@ yumrepo { "ceph-noarch":
     descr => "Ceph noarch packages",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/noarch",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/el$::operatingsystemmajrelease/noarch",
     priority => 1,
     gpgcheck => 1,
     ensure => present,
@@ -56,7 +55,7 @@ yumrepo { "ceph-extras":
     descr => "Ceph Extras",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/rpm-${ceph_release}/${distro}/\$basearch",
+    baseurl => "http://ceph.com/rpm-${ceph_release}/el$::operatingsystemmajrelease/\$basearch",
     priority => 2,
     gpgcheck => 1,
     ensure => present,
@@ -362,26 +361,19 @@ exec { "virsh":
                  Exec["client-volumes-key"] ],
 }
 
-exec { "virsh2":
-    command => "virsh secret-set-value --secret ${rbd_secret_uuid} --base64 `/bin/cat client.volumes.key`",
-    returns => [ "0", "1", ],
-    subscribe => Exec ["virsh"],
-    refreshonly => true,
+define copy_secret_uuid() {
+    $storage_node="$(grep -we ${title} /etc/hosts | awk '{print \$2}')"
+    exec { "copy-secret-uuid-${title}":
+        command => "scp /root/rbd.secret.uuid root@${storage_node}:/root/rbd.secret.uuid",
+        subscribe => Exec["virsh"],
+        refreshonly => true,
+    }
 }
-
-exec { "ceph-osd-libvirt-pool":
-    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
-    returns => [ "0", "1", ],
-    require =>  Package["ceph"],
-    subscribe => Exec ["virsh2"],
-    refreshonly => true,
-}
+copy_secret_uuid{$storage_node_array:}
 
 firewall { "00000 Ceph monitor on port 6789":
   chain    => "INPUT",
-#  iniface  => "eth1",
   proto => "tcp",
-#  source   => "10.1.1.0/24",
   dport => "6789",
   action => "accept",
   notify => Exec["iptables-save"]
@@ -389,9 +381,7 @@ firewall { "00000 Ceph monitor on port 6789":
 
 firewall { "00001 Ceph OSDs on port 6800:7100":
   chain    => "INPUT",
-#  iniface  => "eth1",
   proto => "tcp",
-#  source   => "10.1.1.0/24",
   dport => "6800-7100",
   action => "accept",
   notify => Exec["iptables-save"]
