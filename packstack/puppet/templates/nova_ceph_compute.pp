@@ -50,8 +50,6 @@ nova_config {
   "libvirt/libvirt_inject_password":            value => "false";
   "libvirt/libvirt_inject_key":                 value => "false";
   "libvirt/libvirt_inject_partition":           value => "-2";
-  "vif_plugging_is_fatal":			            value => "False";
-  "vif_plugging_timeout":  	                    value => "0";
 }->
 exec { "openstack-nova-compute":
     command => "/etc/init.d/openstack-nova-compute restart",

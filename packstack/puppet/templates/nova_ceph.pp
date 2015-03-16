@@ -1,9 +1,9 @@
 Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin" }
 
-$rbd_secret_uuid="$(/bin/cat /root/rbd.secret.uuid | tr \"\\n\" \" \")"
+$rbd_secret_uuid_="$(/bin/cat /root/rbd.secret.uuid | tr \"\\n\" \" \")"
 
 exec { "virsh":
-    command => "virsh secret-set-value --secret ${rbd_secret_uuid} --base64 `/bin/cat client.volumes.key`",
+    command => "virsh secret-set-value --secret ${rbd_secret_uuid_} --base64 `/bin/cat client.volumes.key`",
     returns => [ "0", "1", ],
 }
 
@@ -14,6 +14,7 @@ exec { "ceph-osd-libvirt-pool":
     refreshonly => true,
 }
 
+$rbd_secret_uuid=generate("/bin/cat", "/root/rbd.secret.uuid")
 cinder_config {
   "DEFAULT/volume_driver":                      value => "cinder.volume.drivers.rbd.RBDDriver";
   "DEFAULT/rbd_user":                           value => "volumes";

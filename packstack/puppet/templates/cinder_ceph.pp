@@ -370,10 +370,26 @@ define copy_secret_uuid() {
     }
 }
 copy_secret_uuid{$storage_node_array:}
+#exec { "virsh2":
+#    command => "virsh secret-set-value --secret ${rbd_secret_uuid} --base64 `/bin/cat client.volumes.key`",
+#    returns => [ "0", "1", ],
+#    subscribe => Exec ["virsh"],
+#    refreshonly => true,
+#}
+
+#exec { "ceph-osd-libvirt-pool":
+#    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
+#    returns => [ "0", "1", ],
+#    require =>  Package["ceph"],
+#    subscribe => Exec ["virsh2"],
+#    refreshonly => true,
+#}
 
 firewall { "00000 Ceph monitor on port 6789":
   chain    => "INPUT",
+#  iniface  => "eth1",
   proto => "tcp",
+#  source   => "10.1.1.0/24",
   dport => "6789",
   action => "accept",
   notify => Exec["iptables-save"]
@@ -381,7 +397,9 @@ firewall { "00000 Ceph monitor on port 6789":
 
 firewall { "00001 Ceph OSDs on port 6800:7100":
   chain    => "INPUT",
+#  iniface  => "eth1",
   proto => "tcp",
+#  source   => "10.1.1.0/24",
   dport => "6800-7100",
   action => "accept",
   notify => Exec["iptables-save"]
