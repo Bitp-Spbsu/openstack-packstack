@@ -37,12 +37,6 @@ glance_api_config {
   "DEFAULT/rbd_store_ceph_conf": 		value => "/etc/ceph/ceph.conf";
   "DEFAULT/rbd_store_chunk_size": 		value => "8";
 }->
-file { ["/root/client.volumes.key",
-        "/root/virsh.result",
-        "/root/rbd.secret.uuid"]:
-    ensure => absent,
-    before => Exec["openstack-service-restart"],
-}
 exec { "openstack-service-restart":
     command => "/usr/bin/openstack-service restart",
 }
