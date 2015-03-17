@@ -661,6 +661,7 @@ def create_neutron_manifest(config, messages):
             appendManifestFile(os.path.split(manifestfile)[1], data)
 
 def create_ceph_manifest(config, messages):
+    global compute_hosts
     if (config['CONFIG_VMWARE_BACKEND'] != 'y' and
             config['CONFIG_CINDER_INSTALL'] == 'y' and
             config['CONFIG_CINDER_BACKEND'] == 'ceph'):
@@ -668,7 +669,8 @@ def create_ceph_manifest(config, messages):
         manifestfile = "%s_nova.pp" % config['CONFIG_CONTROLLER_HOST']
         appendManifestFile(manifestfile, manifestdata)
 
-        manifestdata = getManifestTemplate("nova_ceph_compute.pp")
-        manifestfile = "%s_nova.pp" % config['CONFIG_COMPUTE_HOSTS']
-        appendManifestFile(manifestfile, manifestdata)
+        for host in compute_hosts:
+            manifestdata = getManifestTemplate("nova_ceph_compute.pp")
+            manifestfile = "%s_nova_ceph.pp" % host
+            appendManifestFile(manifestfile, manifestdata)
 
