@@ -1,9 +1,22 @@
 package { "yum-plugin-priorities":
     ensure => installed,
-}
-
+}->
 file { "/etc/yum/pluginconf.d/priorities.conf":
     ensure => present,
+}
+
+$rbd_secret_uuid_="$(/bin/cat /root/rbd.secret.uuid | tr \"\\n\" \" \")"
+
+exec { "virsh":
+    command => "virsh secret-set-value --secret ${rbd_secret_uuid_} --base64 `/bin/cat client.volumes.key`",
+    returns => [ "0", "1", ],
+}
+
+exec { "ceph-osd-libvirt-pool":
+    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
+    returns => [ "0", "1", ],
+    subscribe => Exec ["virsh"],
+    refreshonly => true,
 }
 
 $ceph_release = "giant"
@@ -51,6 +64,14 @@ nova_config {
   "libvirt/libvirt_inject_key":                 value => "false";
   "libvirt/libvirt_inject_partition":           value => "-2";
 }->
-exec { "openstack-nova-compute":
+file { ["/root/client.volumes.key",
+        "/root/virsh.result",
+        "/root/rbd.secret.uuid"]:
+    ensure => absent,
+    before => Exec["restart-openstack-nova-compute"],
+    require => [ Exec["virsh"],
+               Exec["ceph-osd-libvirt-pool"] ]
+}
+exec { "restart-openstack-nova-compute":
     command => "/etc/init.d/openstack-nova-compute restart",
 }

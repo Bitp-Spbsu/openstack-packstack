@@ -1,19 +1,5 @@
 Exec { path => "/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/root/bin" }
 
-$rbd_secret_uuid_="$(/bin/cat /root/rbd.secret.uuid | tr \"\\n\" \" \")"
-
-exec { "virsh":
-    command => "virsh secret-set-value --secret ${rbd_secret_uuid_} --base64 `/bin/cat client.volumes.key`",
-    returns => [ "0", "1", ],
-}
-
-exec { "ceph-osd-libvirt-pool":
-    command => "ceph osd pool create libvirt-pool 128 128 ; ceph auth get-or-create client.libvirt mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=libvirt-pool'",
-    returns => [ "0", "1", ],
-    subscribe => Exec ["virsh"],
-    refreshonly => true,
-}
-
 $rbd_secret_uuid=generate("/bin/cat", "/root/rbd.secret.uuid")
 cinder_config {
   "DEFAULT/volume_driver":                      value => "cinder.volume.drivers.rbd.RBDDriver";
@@ -56,8 +42,6 @@ file { ["/root/client.volumes.key",
         "/root/rbd.secret.uuid"]:
     ensure => absent,
     before => Exec["openstack-service-restart"],
-    require => [ Exec["virsh"],
-               Exec["ceph-osd-libvirt-pool"] ]
 }
 exec { "openstack-service-restart":
     command => "/usr/bin/openstack-service restart",
