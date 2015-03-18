@@ -66,7 +66,7 @@ yumrepo { "ceph-qemu-source":
     descr => "Ceph Extras Sources",
     gpgkey => "https://ceph.com/git/?p=ceph.git;a=blob_plain;f=keys/release.asc",
     enabled => 1,
-    baseurl => "http://ceph.com/packages/ceph-extras/rpm/centos6/SRPMS",
+    baseurl => "http://ceph.com/packages/ceph-extras/rpm/rhel$::operatingsystemmajrelease/SRPMS",
     priority => 2,
     gpgcheck => 1,
     ensure => present,
